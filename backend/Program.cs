@@ -9,15 +9,15 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
-using MindzBackDotNet.Auth;
-using MindzBackDotNet.Database;
-using MindzBackDotNet.Posts;
-using MindzBackDotNet.Users;
-using MindzBackDotNet.Utility;
+using TolkApi.Auth;
+using TolkApi.Database;
+using TolkApi.Posts;
+using TolkApi.Users;
+using TolkApi.Utility;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddEnvironmentVariables("MINDZ_");
+builder.Configuration.AddEnvironmentVariables("TOLK_");
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CORS",
@@ -70,16 +70,16 @@ builder.Services.AddSingleton<TokenService>();
 
 // Explicitly register IDistributedCache to re-use existing IConnectionMultiplexer
 // to reduce the number of redundant connections to the Redis instance
-builder.Services.AddSingleton<IDistributedCache>(s =>
-{
-    return new RedisCache(new RedisCacheOptions
-    {
-        // Use "ProjectName:" as an instance name to namespace keys and avoid conflicts between projects
-        InstanceName = "Mindz",
-        ConnectionMultiplexerFactory = () =>
-            Task.FromResult(s.GetRequiredService<IConnectionMultiplexer>())
-    });
-});
+// builder.Services.AddSingleton<IDistributedCache>(s =>
+// {
+//     return new RedisCache(new RedisCacheOptions
+//     {
+//         // Use "ProjectName:" as an instance name to namespace keys and avoid conflicts between projects
+//         InstanceName = "Mindz",
+//         ConnectionMultiplexerFactory = () =>
+//             Task.FromResult(s.GetRequiredService<IConnectionMultiplexer>())
+//     });
+// });
 // Create ticket store to store data inside redis
 // builder.Services.AddSingleton<ITicketStore, RedisTicketStore>();
 
@@ -122,6 +122,8 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddApiVersioning(options => { options.ReportApiVersions = true; })
     .AddMvc();
+
+builder.Services.AddHealthChecks();
 
 
 var app = builder.Build();
@@ -192,6 +194,7 @@ app.UseCookiePolicy(new CookiePolicyOptions
 
 app.UsePathBase("/api");
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 
 app.Run();
