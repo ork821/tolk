@@ -23,7 +23,7 @@ FROM base AS final
 WORKDIR /app
 # Ensure directories exist and are owned by non-root user
 USER root
-RUN mkdir -p /app/images /app/avatars && chown -R $APP_UID:$APP_UID /app/images /app/avatars
+RUN mkdir -p /app/attachments /app/avatars && chown -R $APP_UID:$APP_UID /app/attachments /app/avatars
 USER $APP_UID
 COPY --from=publish /app .
 

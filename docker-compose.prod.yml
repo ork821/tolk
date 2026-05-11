@@ -12,10 +12,18 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/attachments:uid=1654,gid=1654
+      - /app/avatars:uid=1654,gid=1654
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -41,10 +49,17 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/.next/cache:uid=1001,gid=1001
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     deploy:
       resources:
         limits:
@@ -78,8 +93,10 @@ services:
     cap_drop:
       - ALL
     depends_on:
-      - api
-      - web
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
     restart: always
     logging:
       driver: "json-file"
