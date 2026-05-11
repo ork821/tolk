@@ -1,0 +1,122 @@
+﻿using MindzBackDotNet.Database;
+using MindzBackDotNet.DTO;
+using MindzBackDotNet.Posts.DTO;
+
+namespace MindzBackDotNet.Posts;
+
+public class PostsService(DatabaseContext databaseContext)
+{
+    public async Task<CreateUpdatePostDto?> CreatePost(long id, Guid userId, long? parentPostId, string title,
+        int contentType, string content)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.create_post(@id, @userId, @parentId, @title, @contentType, @content)");
+
+        command.Parameters.AddWithValue("@id", id);
+        command.Parameters.AddWithValue("@userId", userId);
+        command.Parameters.AddWithValue("@parentId", parentPostId != null ? parentPostId : DBNull.Value);
+        command.Parameters.AddWithValue("@title", title);
+        command.Parameters.AddWithValue("@contentType", contentType);
+        command.Parameters.AddWithValue("@content", content);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync())
+            return new CreateUpdatePostDto(
+                reader.GetInt64(0),
+                reader.IsDBNull(1) ? null : reader.GetInt64(1),
+                reader.GetString(2),
+                reader.GetInt32(4),
+                reader.GetString(5)
+            );
+
+        return null;
+    }
+
+
+    public async Task<CreateUpdatePostDto?> UpdatePost(long id, Guid userId, string title, int contentType,
+        string content)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.update_post(@id, @userId, @title, @contentType, @content)");
+
+        command.Parameters.AddWithValue("@id", id);
+        command.Parameters.AddWithValue("@userId", userId);
+        command.Parameters.AddWithValue("@title", title);
+        command.Parameters.AddWithValue("@contentType", contentType);
+        command.Parameters.AddWithValue("@content", content);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync())
+            return new CreateUpdatePostDto(
+                reader.GetInt64(0),
+                reader.IsDBNull(1) ? null : reader.GetInt64(1),
+                reader.GetString(2),
+                reader.GetInt32(4),
+                reader.GetString(5)
+            );
+
+        return null;
+    }
+
+    public async Task<bool> DeletePost(long id, Guid userId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.delete_post(@postId, @userId)");
+        command.Parameters.AddWithValue("@userId", userId);
+        command.Parameters.AddWithValue("@postId", id);
+
+        var result = (bool)await command.ExecuteScalarAsync();
+        return result;
+    }
+
+    public async Task<PostDto?> GetPost(long post)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_post(@postId)");
+        command.Parameters.AddWithValue("@postId", post);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+
+        if (await reader.ReadAsync()) return PostDto.FromReader(reader);
+
+        return null;
+    }
+
+    public async Task<PostDto[]> GetPostThread(long post)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_post_thread(@postId)");
+        command.Parameters.AddWithValue("@postId", post);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var posts = new List<PostDto>();
+        while (await reader.ReadAsync()) posts.Add(PostDto.FromReader(reader));
+
+        return posts.ToArray();
+    }
+
+    public async Task<CommentEntity[]> GetPostComments(long postId,
+        int limit, DateTime? lastCreatedAt, long? lastId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand("SELECT * FROM main.get_post_comments(@postId, @limit, @lastCreatedAt,  @lastId)");
+
+        command.Parameters.AddWithValue("@postId", postId);
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt == null ? DBNull.Value : lastCreatedAt);
+        command.Parameters.AddWithValue("@lastId", lastId == null ? DBNull.Value : lastId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var comments = new List<CommentEntity>();
+        
+        while (await reader.ReadAsync()) 
+            comments.Add(CommentEntity.FromReader(reader));
+
+        return comments.ToArray();
+    }
+}
