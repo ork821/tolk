@@ -1,4 +1,4 @@
-﻿namespace MindzBackDotNet.Utility;
+﻿namespace TolkApi.Utility;
 
 public sealed class SnowflakeIdGenerator
 {

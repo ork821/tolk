@@ -1,3 +1,3 @@
-﻿namespace MindzBackDotNet.Auth.Providers.DTO;
+﻿namespace TolkApi.Auth.Providers.DTO;
 
 public record ExternalOAuthLoginDto(Guid UserId, string Username, bool IsNew);

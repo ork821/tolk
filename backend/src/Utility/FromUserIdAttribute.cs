@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
-namespace MindzBackDotNet.Utility;
+namespace TolkApi.Utility;
 
 // Указываем, что атрибут можно применять только к параметрам методов и свойствам
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)]

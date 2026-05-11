@@ -1,7 +1,7 @@
-﻿using MindzBackDotNet.Database;
-using MindzBackDotNet.Reactions.DTO;
+﻿using TolkApi.Database;
+using TolkApi.Reactions.DTO;
 
-namespace MindzBackDotNet.Reactions;
+namespace TolkApi.Reactions;
 
 public class ReactionService(DatabaseContext databaseContext)
 {

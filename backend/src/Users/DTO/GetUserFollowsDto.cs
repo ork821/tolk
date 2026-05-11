@@ -1,6 +1,6 @@
 ﻿using Npgsql;
 
-namespace MindzBackDotNet.Users.DTO;
+namespace TolkApi.Users.DTO;
 
 public record GetUserFollowsDto(
     string Username,

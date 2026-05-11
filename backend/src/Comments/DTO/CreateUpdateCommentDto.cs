@@ -1,7 +1,7 @@
 ﻿
-using MindzBackDotNet.Posts;
+using TolkApi.Posts;
 
-namespace MindzBackDotNet.Comments;
+namespace TolkApi.Comments;
 
 public record CreateUpdateCommentDto(
     long Id,

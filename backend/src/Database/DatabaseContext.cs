@@ -1,6 +1,6 @@
 using Npgsql;
 
-namespace MindzBackDotNet.Database;
+namespace TolkApi.Database;
 
 public class DatabaseContext
 {

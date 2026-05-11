@@ -2,10 +2,10 @@ using Asp.Versioning;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MindzBackDotNet.Auth.Providers;
-using MindzBackDotNet.Utility;
+using TolkApi.Auth.Providers;
+using TolkApi.Utility;
 
-namespace MindzBackDotNet.Auth;
+namespace TolkApi.Auth;
 
 [ApiController]
 [ApiVersion(1.0)]

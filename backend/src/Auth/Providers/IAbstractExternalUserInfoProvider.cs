@@ -1,6 +1,6 @@
-﻿using MindzBackDotNet.Auth.Providers.DTO;
+﻿using TolkApi.Auth.Providers.DTO;
 
-namespace MindzBackDotNet.Auth.Providers;
+namespace TolkApi.Auth.Providers;
 
 public interface IAbstractExternalUserInfoProvider
 {

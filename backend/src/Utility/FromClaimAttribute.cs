@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
-namespace MindzBackDotNet.Utility;
+namespace TolkApi.Utility;
 
 [AttributeUsage(AttributeTargets.Parameter)]
 public class FromClaimAttribute : Attribute, IBindingSourceMetadata, IModelNameProvider

@@ -1,8 +1,8 @@
-﻿using MindzBackDotNet.Database;
-using MindzBackDotNet.DTO;
-using MindzBackDotNet.Posts.DTO;
+﻿using TolkApi.Database;
+using TolkApi.DTO;
+using TolkApi.Posts.DTO;
 
-namespace MindzBackDotNet.Posts;
+namespace TolkApi.Posts;
 
 public class PostsService(DatabaseContext databaseContext)
 {

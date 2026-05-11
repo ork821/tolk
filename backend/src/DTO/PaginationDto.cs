@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
-namespace MindzBackDotNet.DTO;
+namespace TolkApi.DTO;
 
 public record PaginationDto(
     [FromQuery(Name = "last_post_id")] long LastPostId,

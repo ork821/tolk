@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace MindzBackDotNet.Utility;
+namespace TolkApi.Utility;
 
 public static class CursorEncoder
 {

@@ -1,8 +1,8 @@
 ﻿using System.Net.Http.Headers;
 using System.Text.Json;
-using MindzBackDotNet.Auth.Providers.DTO;
+using TolkApi.Auth.Providers.DTO;
 
-namespace MindzBackDotNet.Auth.Providers;
+namespace TolkApi.Auth.Providers;
 
 public class YandexExternalUserInfoProvider : IAbstractExternalUserInfoProvider
 {

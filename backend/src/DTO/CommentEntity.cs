@@ -1,7 +1,7 @@
-﻿using MindzBackDotNet.Posts;
+﻿using TolkApi.Posts;
 using Npgsql;
 
-namespace MindzBackDotNet.DTO;
+namespace TolkApi.DTO;
 
 public record CommentEntity(
     long Id,

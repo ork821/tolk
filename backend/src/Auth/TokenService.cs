@@ -2,9 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Microsoft.IdentityModel.Tokens;
-using MindzBackDotNet.Database;
+using TolkApi.Database;
 
-namespace MindzBackDotNet.Auth;
+namespace TolkApi.Auth;
 
 public class TokenService(DatabaseContext context, AuthOptions config)
 {

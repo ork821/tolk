@@ -1,8 +1,8 @@
-﻿using MindzBackDotNet.Database;
-using MindzBackDotNet.DTO;
-using MindzBackDotNet.Users.DTO;
+﻿using TolkApi.Database;
+using TolkApi.DTO;
+using TolkApi.Users.DTO;
 
-namespace MindzBackDotNet.Users;
+namespace TolkApi.Users;
 
 public class UsersService(DatabaseContext databaseContext)
 {

@@ -1,9 +1,9 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using MindzBackDotNet.DTO;
-using MindzBackDotNet.Utility;
+using TolkApi.DTO;
+using TolkApi.Utility;
 
-namespace MindzBackDotNet.Me;
+namespace TolkApi.Me;
 
 [ApiController]
 [ApiVersion(1.0)]

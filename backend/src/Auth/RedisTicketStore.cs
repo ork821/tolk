@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace MindzBackDotNet.Auth;
+namespace TolkApi.Auth;
 
 public class RedisTicketStore : ITicketStore
 {

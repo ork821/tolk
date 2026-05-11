@@ -1,4 +1,4 @@
-﻿namespace MindzBackDotNet.Posts.DTO;
+﻿namespace TolkApi.Posts.DTO;
 
 public record CreateUpdatePostDto(
     long Id,

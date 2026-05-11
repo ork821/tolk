@@ -1,8 +1,8 @@
-﻿using MindzBackDotNet.Database;
-using MindzBackDotNet.DTO;
-using MindzBackDotNet.Posts;
+﻿using TolkApi.Database;
+using TolkApi.DTO;
+using TolkApi.Posts;
 
-namespace MindzBackDotNet.Comments;
+namespace TolkApi.Comments;
 
 public class CommentsService(DatabaseContext databaseContext)
 {

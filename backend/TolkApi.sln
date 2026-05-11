@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MindzBackDotNet", "MindzBackDotNet.csproj", "{DC449B77-8762-46ED-82C9-E1866320B2FA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TolkApi", "TolkApi.csproj", "{DC449B77-8762-46ED-82C9-E1866320B2FA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{09F7ADBF-2CEF-4AC8-B230-BF28500E3D66}"
 	ProjectSection(SolutionItems) = preProject

@@ -1,4 +1,4 @@
-﻿namespace MindzBackDotNet.Users.DTO;
+﻿namespace TolkApi.Users.DTO;
 
 public record GetUserFollowingGroupsDto(
     string Alias

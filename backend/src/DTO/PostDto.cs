@@ -1,6 +1,6 @@
 ﻿using Npgsql;
 
-namespace MindzBackDotNet.DTO;
+namespace TolkApi.DTO;
 
 public record PostDto(
     long Id,

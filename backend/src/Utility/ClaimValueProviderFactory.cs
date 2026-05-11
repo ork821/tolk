@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
-namespace MindzBackDotNet.Utility;
+namespace TolkApi.Utility;
 
 public class ClaimValueProviderFactory : IValueProviderFactory
 {

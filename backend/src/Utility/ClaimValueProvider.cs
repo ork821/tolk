@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
-namespace MindzBackDotNet.Utility;
+namespace TolkApi.Utility;
 
 public class ClaimValueProvider : BindingSourceValueProvider
 {

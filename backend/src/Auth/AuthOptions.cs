@@ -1,11 +1,11 @@
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 
-namespace MindzBackDotNet.Auth;
+namespace TolkApi.Auth;
 
 public class AuthOptions
 {
-    public const string ISSUER = "InMindzServer"; // издатель токена
+    public const string ISSUER = "TolkAPIServer"; // издатель токена
 
     public const string AUDIENCE = "WebClient"; // потребитель токена
     private readonly IConfiguration _config;

@@ -1,4 +1,4 @@
-﻿namespace MindzBackDotNet.Auth.Providers;
+﻿namespace TolkApi.Auth.Providers;
 
 public class ExternalUserInfoProviderFactory
 {

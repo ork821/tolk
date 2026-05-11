@@ -1,9 +1,9 @@
 ﻿using Asp.Versioning;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
-using MindzBackDotNet.DTO;
+using TolkApi.DTO;
 
-namespace MindzBackDotNet.Posts;
+namespace TolkApi.Posts;
 
 [ApiController]
 [ApiVersion(1.0)]

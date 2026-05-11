@@ -1,7 +1,7 @@
-using MindzBackDotNet.Auth.Providers.DTO;
-using MindzBackDotNet.Database;
+using TolkApi.Auth.Providers.DTO;
+using TolkApi.Database;
 
-namespace MindzBackDotNet.Auth;
+namespace TolkApi.Auth;
 
 public class AuthService(DatabaseContext databaseContext)
 {

@@ -2,12 +2,12 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MindzBackDotNet.Comments;
-using MindzBackDotNet.DTO;
-using MindzBackDotNet.Reactions;
-using MindzBackDotNet.Utility;
+using TolkApi.Comments;
+using TolkApi.DTO;
+using TolkApi.Reactions;
+using TolkApi.Utility;
 
-namespace MindzBackDotNet.Posts;
+namespace TolkApi.Posts;
 
 [ApiController]
 [ApiVersion(1.0)]

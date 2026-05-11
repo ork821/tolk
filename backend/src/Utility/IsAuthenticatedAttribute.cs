@@ -2,7 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace MindzBackDotNet.Utility;
+namespace TolkApi.Utility;
 
 public class IsAuthenticatedAttribute : TypeFilterAttribute
 {

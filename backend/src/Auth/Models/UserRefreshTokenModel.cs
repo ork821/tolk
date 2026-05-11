@@ -1,4 +1,4 @@
-namespace MindzBackDotNet.Auth.Models;
+namespace TolkApi.Auth.Models;
 
 public record UserRefreshTokenModel
 {

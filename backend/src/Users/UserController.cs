@@ -1,10 +1,10 @@
 using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using MindzBackDotNet.DTO;
-using MindzBackDotNet.Utility;
+using TolkApi.DTO;
+using TolkApi.Utility;
 
-namespace MindzBackDotNet.Users;
+namespace TolkApi.Users;
 
 [ApiController]
 [ApiVersion(1.0)]
