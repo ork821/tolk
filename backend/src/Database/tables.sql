@@ -1,17 +1,45 @@
-﻿CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "ltree";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE SCHEMA IF NOT EXISTS main;
+CREATE SCHEMA IF NOT EXISTS users;
+CREATE SCHEMA IF NOT EXISTS groups;
+
+CREATE OR REPLACE FUNCTION main.uuid_generate_v7() RETURNS UUID AS
+$$
+DECLARE
+    v_unix_ms BIGINT;
+    v_rand    TEXT;
+    v_variant TEXT;
+BEGIN
+    v_unix_ms := FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT;
+    v_rand := encode(gen_random_bytes(9), 'hex');
+    v_variant := substr('89ab', (get_byte(gen_random_bytes(1), 0) % 4) + 1, 1);
+
+    RETURN (
+        lpad(to_hex(v_unix_ms), 12, '0') ||
+        '7' ||
+        substr(v_rand, 1, 3) ||
+        v_variant ||
+        substr(v_rand, 4, 15)
+    )::UUID;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
 
 -- Пользователи 
 CREATE TABLE IF NOT EXISTS users.users
 (
-    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username     TEXT UNIQUE NOT NULL,
+    id           UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
+    username     TEXT        NOT NULL,
     display_name TEXT        NOT NULL,
-    email        TEXT UNIQUE,
+    email        TEXT,
     created_at   TIMESTAMPTZ      DEFAULT NOW(),
     updated_at   TIMESTAMPTZ,
     deleted_at   TIMESTAMPTZ
 );
+ALTER TABLE users.users ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
+ALTER TABLE users.users DROP CONSTRAINT IF EXISTS users_username_key;
+ALTER TABLE users.users DROP CONSTRAINT IF EXISTS users_email_key;
 CREATE UNIQUE INDEX idx_users_username_active ON users.users (username) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_users_email_active ON users.users (email) WHERE deleted_at IS NULL;
 
@@ -28,7 +56,7 @@ CREATE TABLE IF NOT EXISTS users.profile_info
 CREATE TABLE IF NOT EXISTS users.refresh_tokens
 (
     -- id сессии
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
     user_id    UUID        NOT NULL REFERENCES users.users (id) ON DELETE CASCADE,
 
     -- Сам рефреш-токен (в идеале бекенд должен присылать сюда хэш токена, например SHA-256, 
@@ -45,6 +73,7 @@ CREATE TABLE IF NOT EXISTS users.refresh_tokens
     -- Мы используем мягкое удаление (или отзыв) токена
     revoked_at TIMESTAMPTZ
 );
+ALTER TABLE users.refresh_tokens ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 -- Индекс для супер-быстрого поиска токена при обновлении (когда бекенд проверяет рефреш)
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON users.refresh_tokens (token) WHERE revoked_at IS NULL;
@@ -55,13 +84,14 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON users.refresh_tokens (u
 -- Справочник провайдеров (чтобы легко добавлять новые и отключать старые)
 CREATE TABLE IF NOT EXISTS users.auth_providers
 (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
     name       TEXT UNIQUE NOT NULL,          -- 'google', 'apple', 'github', 'telegram'
     is_active  BOOLEAN          DEFAULT TRUE, -- Возможность выключить логин через провайдера
     created_at TIMESTAMPTZ      DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
+ALTER TABLE users.auth_providers ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 -- Таблица связей внешних аккаунтов с нашими пользователями
 CREATE TABLE IF NOT EXISTS users.user_auth_providers
@@ -106,7 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_user_follow_to_date ON users.user_follow (to_user
 -- ГРУППЫ
 CREATE TABLE IF NOT EXISTS groups.groups
 (
-    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id           UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
     alias        TEXT UNIQUE NOT NULL,
     display_name TEXT UNIQUE NOT NULL,
     description  TEXT,
@@ -115,6 +145,7 @@ CREATE TABLE IF NOT EXISTS groups.groups
     updated_at   TIMESTAMPTZ,
     deleted_at   TIMESTAMPTZ
 );
+ALTER TABLE groups.groups ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 CREATE UNIQUE INDEX idx_groups_alias_active ON groups.groups (alias) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS groups.group_info
@@ -129,7 +160,7 @@ CREATE TABLE IF NOT EXISTS groups.group_info
 
 CREATE TABLE IF NOT EXISTS groups.groups_roles
 (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
     name       TEXT NOT NULL UNIQUE,
     can_create BOOLEAN          DEFAULT FALSE,
     can_update BOOLEAN          DEFAULT FALSE,
@@ -139,6 +170,7 @@ CREATE TABLE IF NOT EXISTS groups.groups_roles
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
+ALTER TABLE groups.groups_roles ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 
 CREATE TABLE IF NOT EXISTS groups.group_user_roles
@@ -214,14 +246,15 @@ CREATE TABLE IF NOT EXISTS main.user_posts
     user_id UUID REFERENCES users.users (id) ON DELETE CASCADE,
     PRIMARY KEY (post_id, user_id)
 );
-CREATE INDEX IF NOT EXISTS idx_user_posts_feed
-    ON main.user_posts (post_id, user_id);
+DROP INDEX IF EXISTS main.idx_user_posts_feed;
+CREATE INDEX IF NOT EXISTS idx_user_posts_user_post
+    ON main.user_posts (user_id, post_id);
 
 
 
 CREATE TABLE IF NOT EXISTS main.reaction_types
 (
-    id         UUID PRIMARY KEY     DEFAULT uuid_generate_v4(),
+    id         UUID PRIMARY KEY     DEFAULT main.uuid_generate_v7(),
     name       TEXT UNIQUE NOT NULL,              -- 'upvote', 'downvote', 'heart', 'fire', etc.
     weight     FLOAT       NOT NULL DEFAULT 0,    -- Влияние реакции на рейтинг (score) поста/комментария
     icon       TEXT,                              -- Опционально: ссылка на графику эмодзи/иконки
@@ -231,6 +264,7 @@ CREATE TABLE IF NOT EXISTS main.reaction_types
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
+ALTER TABLE main.reaction_types ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 
 CREATE TABLE IF NOT EXISTS main.post_reactions
@@ -254,6 +288,21 @@ CREATE TABLE IF NOT EXISTS main.post_reaction_stats
     count       BIGINT DEFAULT 0,
     PRIMARY KEY (post_id, reaction_id)
 );
+CREATE INDEX IF NOT EXISTS idx_post_reaction_stats_reaction_id
+    ON main.post_reaction_stats (reaction_id);
+
+CREATE TABLE IF NOT EXISTS main.post_reaction_events
+(
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    post_id     BIGINT NOT NULL REFERENCES main.posts (id) ON DELETE CASCADE,
+    reaction_id UUID   NOT NULL REFERENCES main.reaction_types (id) ON DELETE CASCADE,
+    delta       SMALLINT NOT NULL CHECK (delta IN (-1, 1)),
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_post_reaction_events_unprocessed
+    ON main.post_reaction_events (created_at, id);
+CREATE INDEX IF NOT EXISTS idx_post_reaction_events_reaction
+    ON main.post_reaction_events (post_id, reaction_id);
 
 
 -- Комментарии
@@ -275,6 +324,12 @@ CREATE INDEX IF NOT EXISTS idx_comments_path_gist ON main.comments USING GIST (p
 CREATE INDEX IF NOT EXISTS idx_comments_post_id ON main.comments (post_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_comments_author_id ON main.comments (author_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON main.comments (parent_comment_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_comments_post_top_level_keyset
+    ON main.comments (post_id, created_at DESC, id DESC)
+    WHERE deleted_at IS NULL AND parent_comment_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_comments_parent_keyset
+    ON main.comments (parent_comment_id, created_at DESC, id DESC)
+    WHERE deleted_at IS NULL;
 
 
 -- Реакции на комментарии
@@ -300,11 +355,13 @@ CREATE TABLE IF NOT EXISTS main.comment_reaction_stats
     count       BIGINT DEFAULT 0,
     PRIMARY KEY (comment_id, reaction_id)
 );
+CREATE INDEX IF NOT EXISTS idx_comment_reaction_stats_reaction_id
+    ON main.comment_reaction_stats (reaction_id);
 
 -- Вложения к постам (Attachments)
 CREATE TABLE IF NOT EXISTS main.post_attachments
 (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
     post_id    BIGINT NOT NULL REFERENCES main.posts (id) ON DELETE CASCADE,
     type       TEXT   NOT NULL,            -- 'image/jpeg', 'video/mp4'
     url        TEXT   NOT NULL,
@@ -313,4 +370,5 @@ CREATE TABLE IF NOT EXISTS main.post_attachments
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
+ALTER TABLE main.post_attachments ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 CREATE INDEX IF NOT EXISTS idx_post_attachments_post_id ON main.post_attachments (post_id) WHERE deleted_at IS NULL;

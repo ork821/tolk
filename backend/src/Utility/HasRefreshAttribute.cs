@@ -5,7 +5,7 @@ namespace TolkApi.Utility;
 
 public class HasRefreshAttribute : TypeFilterAttribute
 {
-    public HasRefreshAttribute() : base(typeof(IsAuthorizedAttributeActionFilter))
+    public HasRefreshAttribute() : base(typeof(HasRefreshAttributeActionFilter))
     {
     }
 }

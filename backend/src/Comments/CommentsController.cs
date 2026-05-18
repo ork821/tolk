@@ -1,7 +1,6 @@
 ﻿using Asp.Versioning;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using TolkApi.DTO;
 using TolkApi.Posts;
@@ -38,11 +37,44 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
             comments = await commentsService.GetCommentReplies(comment, 10, parseResult.lastCreatedAt, parseResult.lastId);
         }
         
+        if (comments.Length == 0) return NoContent();
+
         return  Ok(new
         {
             Comments = comments,
             NextPageToken = CursorEncoder.Encode(comments.Last().CreatedAt, comments.Last().Id)
         });
+    }
+
+    [Authorize]
+    [HttpPost("{comment:long}/replies")]
+    public async Task<IActionResult> CreateReply(
+        [FromRoute] long comment,
+        [FromBody] CreateReplyCommentBodyDto body,
+        [FromUserId] Guid userId
+    )
+    {
+        var validator = new CreateReplyCommentDtoValidator();
+        var validateResult = await validator.ValidateAsync(body);
+        if (!validateResult.IsValid)
+        {
+            return BadRequest();
+        }
+
+        var id = idGenerator.CreateId();
+        var createResult = await commentsService.CreateReplyComment(
+            id,
+            comment,
+            userId,
+            body.Type,
+            body.Content);
+
+        if (createResult == null)
+        {
+            return BadRequest();
+        }
+
+        return StatusCode(StatusCodes.Status201Created, createResult);
     }
     
     [Authorize]
@@ -103,10 +135,10 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     }
     
     [Authorize]
-    [HttpPost("{comment:long}/reactions")]
+    [HttpPut("{comment:long}/reactions/{reaction}")]
     public async Task<IActionResult> AddCommentReaction(
         [FromRoute] long comment,
-        [FromQuery] string reaction,
+        [FromRoute] string reaction,
         [FromUserId] Guid userId
     )
     {
@@ -125,10 +157,10 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     }
     
     [Authorize]
-    [HttpDelete("{comment:long}/reactions")]
+    [HttpDelete("{comment:long}/reactions/{reaction}")]
     public async Task<IActionResult> DeleteCommentReaction(
         [FromRoute] long comment,
-        [FromQuery] string reaction,
+        [FromRoute] string reaction,
         [FromUserId] Guid userId
     )
     {
@@ -154,9 +186,30 @@ public record UpdateCommentBodyDto(
     string Content
 );
 
+public record CreateReplyCommentBodyDto(
+    ContentType Type,
+    string Content
+);
+
 public class UpdateCommentDtoValidator : AbstractValidator<UpdateCommentBodyDto>
 {
     public UpdateCommentDtoValidator()
+    {
+        RuleFor(x => x.Type)
+            .NotEmpty()
+            .IsInEnum()
+            .WithMessage("Type not valid");
+
+        RuleFor(x => x.Content)
+            .NotEmpty()
+            .Length(10, 500)
+            .WithMessage("Content length must be between 10 and 500 characters");
+    }
+}
+
+public class CreateReplyCommentDtoValidator : AbstractValidator<CreateReplyCommentBodyDto>
+{
+    public CreateReplyCommentDtoValidator()
     {
         RuleFor(x => x.Type)
             .NotEmpty()

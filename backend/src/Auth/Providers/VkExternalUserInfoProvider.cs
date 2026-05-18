@@ -4,13 +4,12 @@ using TolkApi.Auth.Providers.DTO;
 
 namespace TolkApi.Auth.Providers;
 
-public class VkExternalUserInfoProvider: IAbstractExternalUserInfoProvider
+public class VkExternalUserInfoProvider(HttpClient httpClient): IAbstractExternalUserInfoProvider
 {
     public async Task<SocialProfileInfo?> GetUserInfo(string token)
     {
-        var httpClient = new HttpClient();
         // Формируем URL. Просим VK вернуть аватарку (photo_200)
-            var url = $"https://api.vk.com/method/users.get?v=5.199&fields=screen_name";
+            var url = "method/users.get?v=5.199&fields=screen_name";
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             
             // В современных версиях VK API токен можно передавать по стандарту в заголовке Bearer

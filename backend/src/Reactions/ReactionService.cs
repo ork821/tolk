@@ -5,6 +5,30 @@ namespace TolkApi.Reactions;
 
 public class ReactionService(DatabaseContext databaseContext)
 {
+    public async Task<ReactionTypeDto[]> GetReactionTypes()
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand("""
+                SELECT name, weight, icon
+                FROM main.reaction_types
+                WHERE is_active IS TRUE
+                  AND deleted_at IS NULL
+                ORDER BY name
+                """);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var reactionTypes = new List<ReactionTypeDto>();
+
+        while (await reader.ReadAsync())
+        {
+            reactionTypes.Add(new ReactionTypeDto(
+                reader.GetString(0),
+                reader.GetDouble(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2)));
+        }
+
+        return reactionTypes.ToArray();
+    }
 
 
     public async Task<bool> AddPostReaction(long postId, Guid userId, string reaction)
@@ -63,7 +87,7 @@ public class ReactionService(DatabaseContext databaseContext)
     public async Task<bool> DeleteCommentReaction(long commentId, Guid userId, string reaction)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM main.delete_post_reactions(@commentId, @userId, @reaction)");
+            .CreateCommand(@"SELECT * FROM main.delete_comment_reactions(@commentId, @userId, @reaction)");
         command.Parameters.AddWithValue("@userId", userId);
         command.Parameters.AddWithValue("@commentId", commentId);
         command.Parameters.AddWithValue("@reaction", reaction);

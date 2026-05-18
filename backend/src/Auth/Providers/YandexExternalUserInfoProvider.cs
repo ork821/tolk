@@ -4,19 +4,18 @@ using TolkApi.Auth.Providers.DTO;
 
 namespace TolkApi.Auth.Providers;
 
-public class YandexExternalUserInfoProvider : IAbstractExternalUserInfoProvider
+public class YandexExternalUserInfoProvider(HttpClient httpClient) : IAbstractExternalUserInfoProvider
 {
     public async Task<SocialProfileInfo?> GetUserInfo(string token)
     {
-        using var client = new HttpClient();
         // Эндпоинт Яндекс.ID для получения информации о пользователе
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://login.yandex.ru/info");
+        var request = new HttpRequestMessage(HttpMethod.Get, "info");
 
         // ВАЖНО: Схема авторизации у Яндекса - "OAuth", а не "Bearer"
         request.Headers.Authorization = new AuthenticationHeaderValue("OAuth", token);
 
         // Отправляем запрос
-        var response = await client.SendAsync(request);
+        var response = await httpClient.SendAsync(request);
 
         if (!response.IsSuccessStatusCode)
         {

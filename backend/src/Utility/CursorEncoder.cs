@@ -8,7 +8,11 @@ public static class CursorEncoder
     public static string Encode(DateTime lastCreatedAt, long lastId)
     {
         // Формируем строку: "1712250000|12345" (UnixTimeMilliseconds|Id)
-        var cursorStr = $"{lastCreatedAt.Millisecond}|{lastId}";
+        var utcCreatedAt = lastCreatedAt.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(lastCreatedAt, DateTimeKind.Utc)
+            : lastCreatedAt.ToUniversalTime();
+        var unixTimeMilliseconds = new DateTimeOffset(utcCreatedAt).ToUnixTimeMilliseconds();
+        var cursorStr = $"{unixTimeMilliseconds}|{lastId}";
 
         // Переводим в Base64, чтобы клиент видел просто "MTcxMjI1MDAwMHwxMjM0NQ=="
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(cursorStr));

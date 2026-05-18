@@ -10,8 +10,11 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using TolkApi.Auth;
+using TolkApi.Auth.Providers;
+using TolkApi.Comments;
 using TolkApi.Database;
 using TolkApi.Posts;
+using TolkApi.Reactions;
 using TolkApi.Users;
 using TolkApi.Utility;
 using StackExchange.Redis;
@@ -60,8 +63,23 @@ builder.Services.AddSingleton<PostsService>();
 builder.Services.AddSingleton<UsersService>();
 builder.Services.AddSingleton<AuthService>();
 // builder.Services.AddSingleton<SubscribeService>();
-// builder.Services.AddSingleton<CommentService>();
+builder.Services.AddSingleton<CommentsService>();
+builder.Services.AddSingleton<ReactionService>();
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddScoped<ExternalUserInfoProviderFactory>();
+builder.Services.AddHttpClient<YandexExternalUserInfoProvider>(client =>
+{
+    client.BaseAddress = new Uri("https://login.yandex.ru/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHttpClient<VkExternalUserInfoProvider>(client =>
+{
+    client.BaseAddress = new Uri("https://api.vk.com/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.Configure<PostReactionStatsSyncOptions>(
+    builder.Configuration.GetSection(PostReactionStatsSyncOptions.SectionName));
+builder.Services.AddHostedService<PostReactionStatsSyncWorker>();
 
 // Register the IConnectionMultiplexer explicitly so it can be accessed via DI
 // (e.g. for the IP rate limiting store)

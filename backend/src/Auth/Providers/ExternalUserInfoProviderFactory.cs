@@ -1,12 +1,15 @@
 ﻿namespace TolkApi.Auth.Providers;
 
-public class ExternalUserInfoProviderFactory
+public class ExternalUserInfoProviderFactory(
+    YandexExternalUserInfoProvider yandexProvider,
+    VkExternalUserInfoProvider vkProvider)
 {
-    public static IAbstractExternalUserInfoProvider? GetProvider(string type)
+    public IAbstractExternalUserInfoProvider? GetProvider(string type)
     {
         switch (type)
         {
-            case "yandex": return new YandexExternalUserInfoProvider();
+            case "yandex": return yandexProvider;
+            case "vk": return vkProvider;
             default: return null;
         }
     }

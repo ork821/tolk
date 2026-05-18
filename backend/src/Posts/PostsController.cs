@@ -47,7 +47,7 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     }
 
     [IsAuthenticated]
-    [HttpPatch("{post:long}")]
+    [HttpPut("{post:long}")]
     public async Task<IActionResult> UpdatePost(
         [FromRoute] long post,
         [FromBody] UpdatePostBodyDto updateDto,
@@ -56,7 +56,6 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         var updatePostResult =
             await service.UpdatePost(post, userId, updateDto.Title, (int)updateDto.Type, updateDto.Content);
         if (updatePostResult == null) return BadRequest("Failed to update post");
-        // Частичное обновление поста
         return Ok(updatePostResult);
     }
 
@@ -105,7 +104,7 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     
     
     [Authorize]
-    [HttpPost("{post:long}/comment")]
+    [HttpPost("{post:long}/comments")]
     public async Task<IActionResult> CreateComment(
         [FromRoute] long post,
         [FromBody] CreateCommentBodyDto body,
@@ -142,10 +141,10 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     }
     
     [Authorize]
-    [HttpPost("{post:long}/reactions")]
-    public async Task<IActionResult> AddCommentReaction(
+    [HttpPut("{post:long}/reactions/{reaction}")]
+    public async Task<IActionResult> AddPostReaction(
         [FromRoute] long post,
-        [FromQuery] string reaction,
+        [FromRoute] string reaction,
         [FromUserId] Guid userId
     )
     {
@@ -164,10 +163,10 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     }
     
     [Authorize]
-    [HttpDelete("{post:long}/reactions")]
-    public async Task<IActionResult> DeleteCommentReaction(
+    [HttpDelete("{post:long}/reactions/{reaction}")]
+    public async Task<IActionResult> DeletePostReaction(
         [FromRoute] long post,
-        [FromQuery] string reaction,
+        [FromRoute] string reaction,
         [FromUserId] Guid userId
     )
     {

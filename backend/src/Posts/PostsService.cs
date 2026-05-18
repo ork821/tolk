@@ -26,8 +26,8 @@ public class PostsService(DatabaseContext databaseContext)
                 reader.GetInt64(0),
                 reader.IsDBNull(1) ? null : reader.GetInt64(1),
                 reader.GetString(2),
-                reader.GetInt32(4),
-                reader.GetString(5)
+                reader.GetInt32(3),
+                reader.GetString(4)
             );
 
         return null;
@@ -53,8 +53,8 @@ public class PostsService(DatabaseContext databaseContext)
                 reader.GetInt64(0),
                 reader.IsDBNull(1) ? null : reader.GetInt64(1),
                 reader.GetString(2),
-                reader.GetInt32(4),
-                reader.GetString(5)
+                reader.GetInt32(3),
+                reader.GetString(4)
             );
 
         return null;

@@ -10,6 +10,14 @@ CREATE OR REPLACE FUNCTION users.create_user(p_username TEXT, p_display_name TEX
 AS
 $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM users.users u WHERE u.username = p_username AND u.deleted_at IS NULL) THEN
+        RAISE EXCEPTION 'Username already in usage';
+    END IF;
+    IF p_email IS NOT NULL
+        AND EXISTS (SELECT 1 FROM users.users u WHERE u.email = p_email AND u.deleted_at IS NULL) THEN
+        RAISE EXCEPTION 'Email already in usage';
+    END IF;
+
     RETURN QUERY INSERT INTO users.users (username, display_name, email)
         VALUES (p_username, p_display_name, p_email)
         RETURNING
@@ -45,9 +53,9 @@ BEGIN
                         u.email                           as po_email,
                         ufi.description                   as po_description,
                         COALESCE(ufi.karma, 0)            as po_karma,
-                        COALESCE(ufi.followers_count)     as po_followers_count,
-                        COALESCE(ufi.user_follows_count)  as po_user_follows_count,
-                        COALESCE(ufi.group_follows_count) as po_groups_follows_count
+                        COALESCE(ufi.followers_count, 0)     as po_followers_count,
+                        COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
+                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count
                  FROM users.users u
                           LEFT JOIN users.profile_info as ufi
                                     ON u.id = ufi.user_id
@@ -62,12 +70,14 @@ CREATE OR REPLACE FUNCTION users.is_user_follows(p_user_id UUID, p_target_userna
 AS
 $$
 BEGIN
-    SELECT tu.id
-    FROM users.users tu
-             JOIN users.user_follow uf ON tu.id = uf.to_user_id AND uf.from_user_id = p_user_id
-    WHERE tu.username = p_target_username;
-
-    RETURN FOUND;
+    RETURN EXISTS (
+        SELECT 1
+        FROM users.users tu
+                 JOIN users.user_follow uf ON tu.id = uf.to_user_id AND uf.from_user_id = p_user_id
+        WHERE tu.username = p_target_username
+          AND tu.deleted_at IS NULL
+          AND uf.deleted_at IS NULL
+    );
 END;
 $$ language plpgsql;
 
@@ -145,9 +155,12 @@ $$
 DECLARE
     target_user_id UUID;
 BEGIN
-    SELECT id FROM users.users WHERE username = p_to_username INTO target_user_id;
+    SELECT id FROM users.users WHERE username = p_to_username AND deleted_at IS NULL INTO target_user_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Target user not found';
+    END IF;
+    IF p_from_user_id = target_user_id THEN
+        RAISE EXCEPTION 'User cannot follow themselves';
     END IF;
 
     INSERT INTO users.user_follow (from_user_id, to_user_id)
@@ -275,8 +288,8 @@ $$
 BEGIN
     RETURN QUERY
         SELECT user_id,
-               revoked_at IS NULL,
-               expires_at > NOW()
+               revoked_at IS NOT NULL,
+               revoked_at IS NULL AND expires_at > NOW()
         FROM users.refresh_tokens
         WHERE token = p_token
         LIMIT 1;
@@ -389,12 +402,22 @@ BEGIN
         RETURN;
     END IF;
 
-    -- 3. РЕГИСТРАЦИЯ НОВОГО ПОЛЬЗОВАТЕЛЯ
+    -- 3. Если провайдер новый, но email уже принадлежит активному пользователю, привязываем провайдера к нему.
+    IF p_email IS NOT NULL THEN
+        SELECT u.id, u.username
+        INTO v_user_id, v_username
+        FROM users.users u
+        WHERE u.email = p_email
+          AND u.deleted_at IS NULL;
+    END IF;
+
+    -- 4. РЕГИСТРАЦИЯ НОВОГО ПОЛЬЗОВАТЕЛЯ
     IF v_user_id IS NULL THEN
         v_is_new := TRUE;
 
         -- Определяем желаемый username (проверяем, не занят ли он)
-        IF p_username IS NOT NULL AND NOT EXISTS (SELECT 1 FROM users.users WHERE username = p_username) THEN
+        IF p_username IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM users.users WHERE username = p_username AND deleted_at IS NULL) THEN
             v_username := p_username;
         ELSE
             -- Если не передали или уже занят кем-то - генерируем случайный
@@ -407,7 +430,7 @@ BEGIN
         VALUES (v_username,
                 COALESCE(p_display_name, p_username, 'Anonymous'), -- Защита от NOT NULL
                 p_email)
-        ON CONFLICT (username) DO NOTHING
+        ON CONFLICT (username) WHERE deleted_at IS NULL DO NOTHING
         RETURNING id INTO v_user_id;
 
         -- Fallback на случай жесткого Race Condition (если имя заняли прямо перед INSERT)
@@ -423,7 +446,7 @@ BEGIN
         INSERT INTO users.profile_info (user_id) VALUES (v_user_id);
     END IF;
 
-    -- 4. СОЗДАЕМ ПРИВЯЗКУ ПРОВАЙДЕРА
+    -- 5. СОЗДАЕМ ПРИВЯЗКУ ПРОВАЙДЕРА
     INSERT INTO users.user_auth_providers (user_id, provider_id, external_id, email)
     VALUES (v_user_id, v_provider_id, p_external_id, p_email);
 
@@ -542,7 +565,7 @@ CREATE OR REPLACE FUNCTION main.update_post(p_id BIGINT, p_user_id UUID,
 AS
 $$
 BEGIN
-    SELECT 1
+    PERFORM 1
     FROM main.user_posts
     WHERE user_id = p_user_id
       AND post_id = p_id;
@@ -571,8 +594,9 @@ CREATE OR REPLACE FUNCTION main.delete_post(p_post_id BIGINT, p_user_id UUID) RE
 $$
 DECLARE
     v_parent_id BIGINT;
+    v_deleted   BOOLEAN;
 BEGIN
-    SELECT 1
+    PERFORM 1
     FROM main.user_posts
     WHERE user_id = p_user_id
       AND post_id = p_post_id;
@@ -588,14 +612,15 @@ BEGIN
     SET deleted_at = now()
     WHERE p.id = p_post_id
       AND deleted_at IS NULL;
+    v_deleted := FOUND;
 
-    IF FOUND AND v_parent_id IS NOT NULL THEN
+    IF v_deleted AND v_parent_id IS NOT NULL THEN
         UPDATE main.post_stats
-        SET replies_count = replies_count - 1
+        SET replies_count = GREATEST(replies_count - 1, 0)
         WHERE post_id = v_parent_id;
     END IF;
 
-    RETURN FOUND;
+    RETURN v_deleted;
 END;
 $$ language plpgsql;
 
@@ -723,8 +748,10 @@ BEGIN
                         p.content,
                         p.parent_post_id,
                         u.username,
+                        u.display_name,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
+                        COALESCE(ps.replies_count, 0),
                         p.created_at,
                         p.updated_at
                  FROM main.posts p
@@ -862,14 +889,15 @@ BEGIN
     END IF;
 
     INSERT INTO main.post_reactions (post_id, user_id, reaction_id)
-    VALUES (p_post_id, p_user_id, p_reaction_id)
+    SELECT p.id, p_user_id, p_reaction_id
+    FROM main.posts p
+    WHERE p.id = p_post_id
+      AND p.deleted_at IS NULL
     ON CONFLICT (post_id, user_id, reaction_id) DO NOTHING;
 
     IF FOUND THEN
-        INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
-        VALUES (p_post_id, p_reaction_id, 1)
-        ON CONFLICT (post_id, reaction_id) DO UPDATE
-            SET count = count + 1;
+        INSERT INTO main.post_reaction_events (post_id, reaction_id, delta)
+        VALUES (p_post_id, p_reaction_id, 1);
     END IF;
 
     RETURN FOUND;
@@ -899,13 +927,74 @@ BEGIN
       AND pr.user_id = p_user_id
       AND pr.reaction_id = p_reaction_id;
     IF FOUND THEN
-        INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
-        VALUES (p_post_id, p_reaction_id, 0)
-        ON CONFLICT (post_id, reaction_id) DO UPDATE
-            SET count = GREATEST(count - 1, 0);
+        INSERT INTO main.post_reaction_events (post_id, reaction_id, delta)
+        VALUES (p_post_id, p_reaction_id, -1);
     END IF;
 
     RETURN FOUND;
+END;
+$$ language plpgsql;
+
+CREATE OR REPLACE FUNCTION main.sync_post_reaction_stats(p_limit INT DEFAULT 1000)
+    RETURNS TABLE
+            (
+                po_processed_events BIGINT,
+                po_affected_stats   BIGINT
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY
+        WITH locked_events AS MATERIALIZED (
+            SELECT id,
+                   post_id,
+                   reaction_id,
+                   delta
+            FROM main.post_reaction_events
+            ORDER BY id
+            LIMIT GREATEST(COALESCE(p_limit, 1000), 0)
+            FOR UPDATE SKIP LOCKED
+        ),
+        aggregated AS (
+            SELECT post_id,
+                   reaction_id,
+                   SUM(delta)::BIGINT AS delta_sum
+            FROM locked_events
+            GROUP BY post_id, reaction_id
+        ),
+        updated AS (
+            UPDATE main.post_reaction_stats prs
+            SET count = GREATEST(prs.count + a.delta_sum, 0)
+            FROM aggregated a
+            WHERE prs.post_id = a.post_id
+              AND prs.reaction_id = a.reaction_id
+            RETURNING prs.post_id, prs.reaction_id
+        ),
+        inserted AS (
+            INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
+            SELECT a.post_id,
+                   a.reaction_id,
+                   a.delta_sum
+            FROM aggregated a
+            WHERE a.delta_sum > 0
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM updated u
+                  WHERE u.post_id = a.post_id
+                    AND u.reaction_id = a.reaction_id
+              )
+            ON CONFLICT (post_id, reaction_id) DO UPDATE
+                SET count = GREATEST(main.post_reaction_stats.count + EXCLUDED.count, 0)
+            RETURNING post_id, reaction_id
+        ),
+        deleted AS (
+            DELETE FROM main.post_reaction_events pre
+            USING locked_events le
+            WHERE pre.id = le.id
+            RETURNING pre.id
+        )
+        SELECT (SELECT COUNT(*) FROM deleted)::BIGINT,
+               ((SELECT COUNT(*) FROM updated) + (SELECT COUNT(*) FROM inserted))::BIGINT;
 END;
 $$ language plpgsql;
 
@@ -928,7 +1017,10 @@ BEGIN
     END IF;
 
     INSERT INTO main.comment_reactions (comment_id, user_id, reaction_id)
-    VALUES (p_comment_id, p_user_id, p_reaction_id)
+    SELECT c.id, p_user_id, p_reaction_id
+    FROM main.comments c
+    WHERE c.id = p_comment_id
+      AND c.deleted_at IS NULL
     ON CONFLICT (comment_id, user_id, reaction_id) DO NOTHING;
 
     IF FOUND THEN
@@ -1043,7 +1135,7 @@ CREATE OR REPLACE FUNCTION main.get_reply_comments(
                 po_id                  BIGINT,
                 po_author_username     TEXT,
                 po_author_display_name TEXT,
-                po_content_type        TEXT,
+                po_content_type        INT,
                 po_content             TEXT,
                 po_replies_count       INT,
                 po_created_at          TIMESTAMPTZ,
@@ -1088,7 +1180,7 @@ CREATE OR REPLACE FUNCTION main.get_post_comments(
                 po_id                  BIGINT,
                 po_author_username     TEXT,
                 po_author_display_name TEXT,
-                po_content_type        TEXT,
+                po_content_type        INT,
                 po_content             TEXT,
                 po_replies_count       INT,
                 po_created_at          TIMESTAMPTZ,
@@ -1139,20 +1231,38 @@ CREATE OR REPLACE FUNCTION main.create_comment(p_post_id BIGINT,
 AS
 $$
 DECLARE
-    v_new_path    ltree;
+    v_new_path   ltree;
+    v_created_at TIMESTAMPTZ;
+    v_updated_at TIMESTAMPTZ;
 BEGIN
 
     v_new_path := p_comment_id::text::ltree;
 
-    RETURN QUERY INSERT INTO main.comments
+    INSERT INTO main.comments
         (id, post_id, author_id, content_type, content, parent_comment_id, path)
-        VALUES (p_comment_id, p_post_id, p_user_id, p_content_type, p_content, NULL, v_new_path)
-        RETURNING main.comments.id,
-            main.comments.content_type,
-            main.comments.content,
-            main.comments.parent_comment_id,
-            main.comments.created_at,
-            main.comments.updated_at;
+    SELECT p_comment_id, p.id, p_user_id, p_content_type, p_content, NULL, v_new_path
+    FROM main.posts p
+    WHERE p.id = p_post_id
+      AND p.deleted_at IS NULL
+      AND p.comments_enabled IS TRUE
+    RETURNING main.comments.created_at, main.comments.updated_at
+        INTO v_created_at, v_updated_at;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Post % does not exist or comments are disabled', p_post_id;
+    END IF;
+
+    INSERT INTO main.post_stats (post_id, comments_count)
+    VALUES (p_post_id, 1)
+    ON CONFLICT (post_id) DO UPDATE
+        SET comments_count = main.post_stats.comments_count + 1;
+
+    RETURN QUERY SELECT p_comment_id,
+                        p_content_type,
+                        p_content,
+                        NULL::BIGINT,
+                        v_created_at,
+                        v_updated_at;
 END;
 $$ language plpgsql;
 
@@ -1177,14 +1287,18 @@ DECLARE
     v_parent_path    ltree;
     v_parent_post_id BIGINT;
     v_new_path       ltree;
+    v_created_at     TIMESTAMPTZ;
+    v_updated_at     TIMESTAMPTZ;
 BEGIN
 
-    UPDATE main.comments
-    SET replies_count = replies_count + 1
-    WHERE id = p_parent_comment_id
-    RETURNING path, post_id
-        INTO v_parent_path, v_parent_post_id;
-
+    SELECT c.path, c.post_id
+    INTO v_parent_path, v_parent_post_id
+    FROM main.comments c
+             JOIN main.posts p ON p.id = c.post_id
+    WHERE c.id = p_parent_comment_id
+      AND c.deleted_at IS NULL
+      AND p.deleted_at IS NULL
+      AND p.comments_enabled IS TRUE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Parent comment id % not found', p_parent_comment_id;
     END IF;
@@ -1192,15 +1306,22 @@ BEGIN
     v_new_path := v_parent_path || p_comment_id::text::ltree;
 
 
-    RETURN QUERY INSERT INTO main.comments
+    INSERT INTO main.comments
         (id, post_id, author_id, content_type, content, parent_comment_id, path)
         VALUES (p_comment_id, v_parent_post_id, p_user_id, p_content_type, p_content, p_parent_comment_id, v_new_path)
-        RETURNING main.comments.id,
-            main.comments.content_type,
-            main.comments.content,
-            main.comments.parent_comment_id,
-            main.comments.created_at,
-            main.comments.updated_at;
+        RETURNING main.comments.created_at, main.comments.updated_at
+            INTO v_created_at, v_updated_at;
+
+    UPDATE main.comments
+    SET replies_count = replies_count + 1
+    WHERE id = p_parent_comment_id;
+
+    RETURN QUERY SELECT p_comment_id,
+                        p_content_type,
+                        p_content,
+                        p_parent_comment_id,
+                        v_created_at,
+                        v_updated_at;
 END;
 $$ language plpgsql;
 
@@ -1241,15 +1362,33 @@ CREATE OR REPLACE FUNCTION main.delete_comment(p_comment_id BIGINT,
     RETURNS BOOLEAN
 AS
 $$
+DECLARE
+    v_parent_comment_id BIGINT;
+    v_post_id           BIGINT;
+    v_deleted           BOOLEAN;
 BEGIN
 
     UPDATE main.comments
     SET deleted_at = NOW()
     WHERE id = p_comment_id
       AND author_id = p_user_id
-      AND deleted_at IS NULL;
+      AND deleted_at IS NULL
+    RETURNING parent_comment_id, post_id
+        INTO v_parent_comment_id, v_post_id;
 
-    RETURN FOUND;
+    v_deleted := FOUND;
+
+    IF v_deleted AND v_parent_comment_id IS NULL THEN
+        UPDATE main.post_stats
+        SET comments_count = GREATEST(comments_count - 1, 0)
+        WHERE post_id = v_post_id;
+    ELSIF v_deleted THEN
+        UPDATE main.comments
+        SET replies_count = GREATEST(replies_count - 1, 0)
+        WHERE id = v_parent_comment_id;
+    END IF;
+
+    RETURN v_deleted;
 END;
 
 $$ language plpgsql;

@@ -63,15 +63,13 @@ public class AuthService(DatabaseContext databaseContext)
     public async Task<bool> RevokeAllRefreshTokens(Guid userId, string? refreshToken)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand("SELECT * FROM users.revoke_all_refresh_tokens(@userId, @refreshToken)");
+            .CreateCommand("SELECT users.revoke_all_refresh_tokens(@userId, @refreshToken)");
 
         command.Parameters.AddWithValue("@userId", userId);
         command.Parameters.AddWithValue("@refreshToken", refreshToken == null ? DBNull.Value : refreshToken);
 
-        var result = await command.ExecuteScalarAsync();
-        if (result == null) return false;
-
-        return (bool)result;
+        await command.ExecuteNonQueryAsync();
+        return true;
     }
 
 

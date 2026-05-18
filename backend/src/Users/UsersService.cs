@@ -113,7 +113,7 @@ public class UsersService(DatabaseContext databaseContext)
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        return reader.GetBoolean(0);
+        return await reader.ReadAsync() && reader.GetBoolean(0);
     }
 
     public async Task<bool> FollowUser(Guid userId, string username)

@@ -31,7 +31,7 @@ public record PostDto(
             reader.GetInt64(8),
             reader.GetInt64(9),
             reader.GetDateTime(10),
-            reader.IsDBNull(11) ? null : reader.GetDateTime(1)
+            reader.IsDBNull(11) ? null : reader.GetDateTime(11)
         );
     }
 }

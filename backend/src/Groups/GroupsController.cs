@@ -13,7 +13,7 @@ public class GroupsController : ControllerBase
     [HttpPost]
     public IActionResult CreateGroup([FromBody] CreateGroupDto createDto)
     {
-        var newGroupId = Guid.NewGuid();
+        var newGroupId = Guid.CreateVersion7();
         return Created($"/api/v1/groups/{newGroupId}", new { Id = newGroupId, Name = createDto.DisplayName });
     }
 

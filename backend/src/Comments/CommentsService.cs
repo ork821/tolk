@@ -45,14 +45,7 @@ public class CommentsService(DatabaseContext databaseContext)
 
         if (await reader.ReadAsync())
         {
-            return new CreateUpdateCommentDto(
-                reader.GetInt64(0),
-                (ContentType)reader.GetInt32(1),
-                reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetInt64(4),
-                reader.GetDateTime(5),
-                reader.IsDBNull(6) ? null : reader.GetDateTime(6)
-                );
+            return ReadCreateUpdateComment(reader);
         }
 
         return null;
@@ -76,14 +69,7 @@ public class CommentsService(DatabaseContext databaseContext)
 
         if (await reader.ReadAsync())
         {
-            return new CreateUpdateCommentDto(
-                reader.GetInt64(0),
-                (ContentType)reader.GetInt32(1),
-                reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetInt64(4),
-                reader.GetDateTime(5),
-                reader.IsDBNull(6) ? null : reader.GetDateTime(6)
-            );
+            return ReadCreateUpdateComment(reader);
         }
 
         return null;
@@ -105,14 +91,7 @@ public class CommentsService(DatabaseContext databaseContext)
 
         if (await reader.ReadAsync())
         {
-            return new CreateUpdateCommentDto(
-                reader.GetInt64(0),
-                (ContentType)reader.GetInt32(1),
-                reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetInt64(4),
-                reader.GetDateTime(5),
-                reader.IsDBNull(6) ? null : reader.GetDateTime(6)
-            );
+            return ReadCreateUpdateComment(reader);
         }
 
         return null;
@@ -133,6 +112,18 @@ public class CommentsService(DatabaseContext databaseContext)
             return false;
         }
         return (bool)result;
+    }
+
+    private static CreateUpdateCommentDto ReadCreateUpdateComment(Npgsql.NpgsqlDataReader reader)
+    {
+        return new CreateUpdateCommentDto(
+            reader.GetInt64(0),
+            (ContentType)reader.GetInt32(1),
+            reader.GetString(2),
+            reader.IsDBNull(3) ? null : reader.GetInt64(3),
+            reader.GetDateTime(4),
+            reader.IsDBNull(5) ? null : reader.GetDateTime(5)
+        );
     }
     
 }

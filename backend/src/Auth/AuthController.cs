@@ -13,13 +13,13 @@ namespace TolkApi.Auth;
 public class AuthController(
     AuthService authService,
     TokenService tokenService,
-    IConfiguration configuration
+    ExternalUserInfoProviderFactory externalUserInfoProviderFactory
 )
     : ControllerBase
 {
+    private const string RefreshTokenCookieName = "refresh_token";
     private static readonly HashSet<string> SupportedProviders = ["yandex", "vk"];
     private readonly AuthService _authService = authService;
-    private readonly IConfiguration _config = configuration;
 
     [HttpGet("providers")]
     public IActionResult GetProviders()
@@ -38,7 +38,7 @@ public class AuthController(
         if (string.IsNullOrWhiteSpace(userAgent)) return BadRequest("Invalid UserAgent");
 
         
-        var providerInstance = ExternalUserInfoProviderFactory.GetProvider(provider);
+        var providerInstance = externalUserInfoProviderFactory.GetProvider(provider);
         if (providerInstance == null) return BadRequest("Provider is not supported");
 
         // 1. Провалидировали в Google
@@ -63,7 +63,7 @@ public class AuthController(
 
         await _authService.SaveRefreshToken(user.UserId, refreshToken, 30, userAgent);
 
-        HttpContext.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
+        HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
@@ -79,10 +79,10 @@ public class AuthController(
 
     [Authorize]
     [HasRefresh]
-    [HttpGet("refresh")]
+    [HttpPost("refresh")]
     public async Task<ActionResult> RefreshTokens([FromUserId] Guid? claimUserId)
     {
-        HttpContext.Request.Cookies.TryGetValue("refresh_token", out var refresh);
+        HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
         if (claimUserId == null || refresh == null) return Unauthorized();
 
         var userRefreshToken = await _authService.ValidateRefreshToken(refresh);
@@ -107,7 +107,7 @@ public class AuthController(
 
         await _authService.SaveRefreshToken((Guid)claimUserId, refreshToken, 30, userAgent);
 
-        HttpContext.Response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
+        HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
@@ -121,17 +121,18 @@ public class AuthController(
         });
     }
 
-
-    [HttpGet("logout")]
+    [Authorize]
+    [HasRefresh]
+    [HttpPost("logout")]
     public async Task<IActionResult> Logout(
         [FromUserId] Guid? userId
     )
     {
-        HttpContext.Request.Cookies.TryGetValue("refresh_token", out var refresh);
+        HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
         if (userId == null || refresh == null) return Unauthorized();
 
         await _authService.RevokeRefreshToken(refresh);
-        HttpContext.Response.Cookies.Delete("refresh");
+        HttpContext.Response.Cookies.Delete(RefreshTokenCookieName);
         return NoContent();
     }
 }
