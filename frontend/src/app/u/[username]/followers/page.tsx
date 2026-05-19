@@ -20,7 +20,7 @@ export default function FollowersPage({ params }: { params: Promise<{ username: 
     } = useInfiniteQuery({
         queryKey: ["user-connections", username, "followers"],
         queryFn: async ({pageParam}) => {
-            const {data} = await api.GET("/v1/users/{username}/followers", {
+            const {data, error} = await api.GET("/v1/users/{username}/followers", {
                 params: {
                     path: {
                         username,
@@ -29,6 +29,10 @@ export default function FollowersPage({ params }: { params: Promise<{ username: 
                     query: pageParam ? {next_page_token: pageParam} : undefined,
                 },
             });
+
+            if (error) {
+                throw error;
+            }
 
             return data;
         },
