@@ -1,5 +1,8 @@
 export {apiClient} from "@/lib/api/client";
 export {commentsApi} from "@/lib/api/comments";
+export {api, apiBaseUrl} from "@/lib/api/openapi-client";
+export type {ApiPaths, ApiResponse} from "@/lib/api/openapi-client";
+export {apiQuery} from "@/lib/api/openapi-react";
 export {postsApi} from "@/lib/api/posts";
 export {usersApi} from "@/lib/api/users";
 export type {

@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
+using TolkApi.Reactions.DTO;
 
 namespace TolkApi.Reactions;
 
@@ -9,6 +10,7 @@ namespace TolkApi.Reactions;
 public class ReactionsController(ReactionService reactionService) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(ReactionTypeDto[]), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReactionTypes()
     {
         var reactionTypes = await reactionService.GetReactionTypes();

@@ -5,7 +5,8 @@ import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 import {BackButton} from "@/components/back-button";
 import {FollowList, FollowListSkeleton} from "@/components/follow-list";
-import {usersApi} from "@/lib/api";
+import {api} from "@/lib/api";
+import {mapFollowersPageToFollowListUsers} from "@/lib/api/follow-mappers";
 
 export default function FollowersPage({ params }: { params: Promise<{ username: string }> }) {
     const { username } = use(params);
@@ -18,9 +19,21 @@ export default function FollowersPage({ params }: { params: Promise<{ username: 
         status,
     } = useInfiniteQuery({
         queryKey: ["user-connections", username, "followers"],
-        queryFn: ({ pageParam }) => usersApi.getFollowers(username),
-        initialPageParam: 0,
-        getNextPageParam: (lastPage) => 1,
+        queryFn: async ({pageParam}) => {
+            const {data} = await api.GET("/v1/users/{username}/followers", {
+                params: {
+                    path: {
+                        username,
+                        version: "1",
+                    },
+                    query: pageParam ? {next_page_token: pageParam} : undefined,
+                },
+            });
+
+            return data;
+        },
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (lastPage) => lastPage?.nextPageToken ?? undefined,
     });
 
     useEffect(() => {
@@ -29,7 +42,7 @@ export default function FollowersPage({ params }: { params: Promise<{ username: 
         }
     }, [fetchNextPage, hasNextPage, inView, isFetchingNextPage]);
 
-    const users = data?.pages.flatMap((page) => page.data) ?? [];
+    const users = data?.pages.flatMap(mapFollowersPageToFollowListUsers) ?? [];
 
     return (
         <div className="flex min-h-screen flex-col gap-5 pb-20 mt-6">

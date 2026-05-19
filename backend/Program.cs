@@ -5,10 +5,12 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using TolkApi.Auth;
 using TolkApi.Auth.Providers;
 using TolkApi.Comments;
@@ -17,6 +19,8 @@ using TolkApi.Posts;
 using TolkApi.Reactions;
 using TolkApi.Users;
 using TolkApi.Utility;
+using TolkApi.Utility.OpenApi;
+using TolkApi.Utility.Routing;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -104,8 +108,46 @@ builder.Services.AddHostedService<PostReactionStatsSyncWorker>();
 var authOptions = new AuthOptions(builder.Configuration);
 builder.Services.AddSingleton(authOptions);
 
-builder.Services.AddControllers(options => { options.ValueProviderFactories.Add(new ClaimValueProviderFactory()); })
+builder.Services.AddControllers(options =>
+    {
+        options.ValueProviderFactories.Add(new ClaimValueProviderFactory());
+        options.Conventions.Add(new RouteTokenTransformerConvention(new LowercaseRouteParameterTransformer()));
+    })
     .AddNewtonsoftJson();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Tolk API",
+        Version = "v1"
+    });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT access token. Example: Bearer {token}"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            []
+        }
+    });
+    options.OperationFilter<RemoveClaimBoundParametersOperationFilter>();
+    options.DocumentFilter<ApiVersionDocumentFilter>();
+});
 
 builder.Services.AddAuthentication((options) =>
     {
@@ -145,6 +187,16 @@ builder.Services.AddHealthChecks();
 
 
 var app = builder.Build();
+
+app.UseSwagger(options =>
+{
+    options.RouteTemplate = "api/swagger/{documentName}/swagger.json";
+});
+app.UseSwaggerUI(options =>
+{
+    options.RoutePrefix = "api/swagger";
+    options.SwaggerEndpoint("/api/swagger/v1/swagger.json", "Tolk API v1");
+});
 
 app.Use((context, next) =>
 {

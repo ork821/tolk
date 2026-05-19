@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using TolkApi.DTO;
+using TolkApi.Users.DTO;
 using TolkApi.Utility;
 
 namespace TolkApi.Users;
@@ -11,7 +12,11 @@ namespace TolkApi.Users;
 [Route("v{version:apiVersion}/[controller]")]
 public class UsersController(UsersService usersService) : ControllerBase
 {
+    private const int PageSize = 20;
+
     [HttpGet("{username}/posts")]
+    [ProducesResponseType(typeof(PagedPostsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUserPosts(
         [FromRoute] string username,
         [FromQuery(Name = "next_page_token")] string? nextPageToken)
@@ -22,22 +27,24 @@ public class UsersController(UsersService usersService) : ControllerBase
             var decodeResult = CursorEncoder.Decode(nextPageToken);
             if (decodeResult.lastCreatedAt == null || decodeResult.lastId == null)
                 return BadRequest("Invalid next page token");
-            posts = await usersService.GetUserPosts(username, 20, decodeResult.lastCreatedAt, decodeResult.lastId);
+            posts = await usersService.GetUserPosts(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastId);
         }
         else
         {
-            posts = await usersService.GetUserPosts(username, 20, null, null);
+            posts = await usersService.GetUserPosts(username, PageSize + 1, null, null);
         }
 
-        if (posts.Length == 0) return NotFound();
-
-        var lastPost = posts.Last();
-        var nextToken = CursorEncoder.Encode(lastPost.CreatedAt, lastPost.Id);
+        var postsPage = posts.Take(PageSize).ToArray();
+        var nextToken = posts.Length <= PageSize
+            ? null
+            : CursorEncoder.Encode(postsPage.Last().CreatedAt, postsPage.Last().Id);
         // Получение стены пользователя
-        return Ok(new { Posts = posts, NextPageToken = nextToken });
+        return Ok(new PagedPostsDto(postsPage, nextToken));
     }
 
     [HttpGet("{username}")]
+    [ProducesResponseType(typeof(GetUserByUsernameDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUserProfileInfo(string username)
     {
         var userInfo = await usersService.GetUserByUsername(username);
@@ -56,42 +63,110 @@ public class UsersController(UsersService usersService) : ControllerBase
 
     [IsAuthenticated]
     [HttpPost("{username}/follow")]
+    [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> FollowUser([FromRoute] string username,
         [FromClaim(ClaimTypes.NameIdentifier)] string userId)
     {
         var user = Guid.Parse(userId);
         var result = await usersService.FollowUser(user, username);
-        return Ok(new { Result = result });
+        return Ok(new OperationResultDto(result));
     }
 
     [IsAuthenticated]
     [HttpDelete("{username}/follow")]
+    [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> UnfollowUser([FromRoute] string username,
         [FromClaim(ClaimTypes.NameIdentifier)] string userId)
     {
         var user = Guid.Parse(userId);
         var result = await usersService.UnfollowUser(user, username);
-        return Ok(new { Result = result });
+        return Ok(new OperationResultDto(result));
     }
 
     [HttpGet("{username}/follows/users")]
-    public async Task<IActionResult> GetUserFollows(string username)
+    [ProducesResponseType(typeof(PagedUserFollowsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetUserFollows(
+        [FromRoute] string username,
+        [FromQuery(Name = "next_page_token")] string? nextPageToken)
     {
-        var follows = await usersService.GetUserFollows(username);
-        return Ok(follows);
+        GetUserFollowsDto[] follows;
+        if (nextPageToken != null)
+        {
+            var decodeResult = CursorEncoder.DecodeText(nextPageToken);
+            if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
+                return BadRequest("Invalid next page token");
+
+            follows = await usersService.GetUserFollows(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+        }
+        else
+        {
+            follows = await usersService.GetUserFollows(username, PageSize + 1, null, null);
+        }
+
+        var followsPage = follows.Take(PageSize).ToArray();
+        var nextToken = follows.Length <= PageSize
+            ? null
+            : CursorEncoder.Encode(followsPage.Last().CreatedAt, followsPage.Last().Username);
+
+        return Ok(new PagedUserFollowsDto(followsPage, nextToken));
     }
 
     [HttpGet("{username}/follows/groups")]
-    public async Task<IActionResult> GetGroupFollows(string username)
+    [ProducesResponseType(typeof(PagedUserGroupFollowsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetGroupFollows(
+        [FromRoute] string username,
+        [FromQuery(Name = "next_page_token")] string? nextPageToken)
     {
-        var groupFollows = await usersService.GetUserFollowingGroups(username);
-        return Ok(groupFollows);
+        GetUserFollowingGroupsDto[] groupFollows;
+        if (nextPageToken != null)
+        {
+            var decodeResult = CursorEncoder.DecodeText(nextPageToken);
+            if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
+                return BadRequest("Invalid next page token");
+
+            groupFollows = await usersService.GetUserFollowingGroups(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+        }
+        else
+        {
+            groupFollows = await usersService.GetUserFollowingGroups(username, PageSize + 1, null, null);
+        }
+
+        var groupFollowsPage = groupFollows.Take(PageSize).ToArray();
+        var nextToken = groupFollows.Length <= PageSize
+            ? null
+            : CursorEncoder.Encode(groupFollowsPage.Last().CreatedAt, groupFollowsPage.Last().Alias);
+
+        return Ok(new PagedUserGroupFollowsDto(groupFollowsPage, nextToken));
     }
 
     [HttpGet("{username}/followers")]
-    public async Task<IActionResult> GetUserFollowers(string username)
+    [ProducesResponseType(typeof(PagedUserFollowersDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetUserFollowers(
+        [FromRoute] string username,
+        [FromQuery(Name = "next_page_token")] string? nextPageToken)
     {
-        var followers = await usersService.GetUserFollowers(username);
-        return Ok(followers);
+        GetUserFollowersDto[] followers;
+        if (nextPageToken != null)
+        {
+            var decodeResult = CursorEncoder.DecodeText(nextPageToken);
+            if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
+                return BadRequest("Invalid next page token");
+
+            followers = await usersService.GetUserFollowers(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+        }
+        else
+        {
+            followers = await usersService.GetUserFollowers(username, PageSize + 1, null, null);
+        }
+
+        var followersPage = followers.Take(PageSize).ToArray();
+        var nextToken = followers.Length <= PageSize
+            ? null
+            : CursorEncoder.Encode(followersPage.Last().CreatedAt, followersPage.Last().Username);
+
+        return Ok(new PagedUserFollowersDto(followersPage, nextToken));
     }
 }

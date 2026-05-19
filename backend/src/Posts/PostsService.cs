@@ -99,6 +99,23 @@ public class PostsService(DatabaseContext databaseContext)
         return posts.ToArray();
     }
 
+    public async Task<PostDto[]> GetFeed(int limit, DateTime? lastCreatedAt, long? lastId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_feed(@limit, @lastCreatedAt, @lastId)");
+
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt == null ? DBNull.Value : lastCreatedAt);
+        command.Parameters.AddWithValue("@lastId", lastId == null ? DBNull.Value : lastId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var posts = new List<PostDto>();
+        while (await reader.ReadAsync()) posts.Add(PostDto.FromReader(reader));
+
+        return posts.ToArray();
+    }
+
     public async Task<CommentEntity[]> GetPostComments(long postId,
         int limit, DateTime? lastCreatedAt, long? lastId)
     {

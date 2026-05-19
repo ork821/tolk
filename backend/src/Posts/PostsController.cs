@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TolkApi.Comments;
 using TolkApi.DTO;
+using TolkApi.Posts.DTO;
 using TolkApi.Reactions;
+using TolkApi.Reactions.DTO;
 using TolkApi.Utility;
 
 namespace TolkApi.Posts;
@@ -16,8 +18,12 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     ReactionService reactionService)
     : ControllerBase
 {
+    private const int PageSize = 20;
+
     [IsAuthenticated]
     [HttpPost]
+    [ProducesResponseType(typeof(CreateUpdatePostDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreatePost([FromBody] CreatePostBodyDto createDto, [FromUserId] Guid userId)
     {
         // Логика создания поста (в группе или на личной стене)
@@ -29,6 +35,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     }
 
     [HttpGet("{post:long}")]
+    [ProducesResponseType(typeof(PostDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPost([FromRoute] long post)
     {
         var postEntity = await service.GetPost(post);
@@ -38,6 +46,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     }
 
     [HttpGet("{post:long}/thread")]
+    [ProducesResponseType(typeof(PostDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPostThread([FromRoute] long post)
     {
         var thread = await service.GetPostThread(post);
@@ -48,6 +58,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
 
     [IsAuthenticated]
     [HttpPut("{post:long}")]
+    [ProducesResponseType(typeof(CreateUpdatePostDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdatePost(
         [FromRoute] long post,
         [FromBody] UpdatePostBodyDto updateDto,
@@ -61,6 +73,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
 
     [IsAuthenticated]
     [HttpDelete("{post:long}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeletePost([FromRoute] long post, [FromUserId] Guid userId)
     {
         var deletePostResult = await service.DeletePost(post, userId);
@@ -74,13 +88,15 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
      */
     
     [HttpGet("{post:long}/comments")]
+    [ProducesResponseType(typeof(PagedCommentsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetPostComments([FromRoute] long post, 
         [FromQuery(Name = "next_page_token")] string? nextPageToken)
     {
         CommentEntity[] comments;
         if (nextPageToken == null)
         {
-            comments = await service.GetPostComments(post, 20, null, null);
+            comments = await service.GetPostComments(post, PageSize + 1, null, null);
         }
         else
         {
@@ -90,21 +106,22 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
                 return BadRequest("Invalid next page token");
             }
 
-            comments = await service.GetPostComments(post, 20, parseResult.lastCreatedAt, parseResult.lastId);
+            comments = await service.GetPostComments(post, PageSize + 1, parseResult.lastCreatedAt, parseResult.lastId);
         }
 
-        if (comments.Length == 0) return NoContent();
+        var page = comments.Take(PageSize).ToArray();
+        var nextToken = comments.Length <= PageSize
+            ? null
+            : CursorEncoder.Encode(page.Last().CreatedAt, page.Last().Id);
         
-        return  Ok(new
-        {
-            Comments = comments,
-            NextPageToken = CursorEncoder.Encode(comments.Last().CreatedAt, comments.Last().Id)
-        });
+        return  Ok(new PagedCommentsDto(page, nextToken));
     }
     
     
     [Authorize]
     [HttpPost("{post:long}/comments")]
+    [ProducesResponseType(typeof(CreateUpdateCommentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateComment(
         [FromRoute] long post,
         [FromBody] CreateCommentBodyDto body,
@@ -133,6 +150,7 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     }
     
     [HttpGet("{post:long}/reactions")]
+    [ProducesResponseType(typeof(GetReactionsDto[]), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReactions([FromRoute] long post)
     {
         var reactions = await reactionService.GetPostReactions(post);
@@ -142,6 +160,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     
     [Authorize]
     [HttpPut("{post:long}/reactions/{reaction}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddPostReaction(
         [FromRoute] long post,
         [FromRoute] string reaction,
@@ -164,6 +184,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     
     [Authorize]
     [HttpDelete("{post:long}/reactions/{reaction}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeletePostReaction(
         [FromRoute] long post,
         [FromRoute] string reaction,

@@ -64,6 +64,39 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
+    RETURNS TABLE
+            (
+                po_user_id              UUID,
+                po_username             TEXT,
+                po_display_name         TEXT,
+                po_email                TEXT,
+                po_description          TEXT,
+                po_karma                BIGINT,
+                po_followers_count      BIGINT,
+                po_user_follows_count   BIGINT,
+                po_groups_follows_count BIGINT
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT u.id                              as po_user_id,
+                        u.username                        as po_username,
+                        u.display_name                    as po_display_name,
+                        u.email                           as po_email,
+                        ufi.description                   as po_description,
+                        COALESCE(ufi.karma, 0)            as po_karma,
+                        COALESCE(ufi.followers_count, 0)     as po_followers_count,
+                        COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
+                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count
+                 FROM users.users u
+                          LEFT JOIN users.profile_info as ufi
+                                    ON u.id = ufi.user_id
+                 WHERE u.id = p_user_id
+                   AND u.deleted_at IS NULL;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Подписан ли userId На username
 CREATE OR REPLACE FUNCTION users.is_user_follows(p_user_id UUID, p_target_username TEXT)
     RETURNS BOOLEAN
@@ -81,32 +114,54 @@ BEGIN
 END;
 $$ language plpgsql;
 
-CREATE OR REPLACE FUNCTION users.get_user_follows(p_username TEXT)
+CREATE OR REPLACE FUNCTION users.get_user_follows(
+    p_username TEXT,
+    p_limit INT DEFAULT 20,
+    p_last_created_at TIMESTAMPTZ DEFAULT NULL,
+    p_last_username TEXT DEFAULT NULL
+)
     RETURNS TABLE
             (
                 po_username TEXT,
-                po_display_name TEXT
+                po_display_name TEXT,
+                po_created_at TIMESTAMPTZ
             )
 AS
 $$
 BEGIN
     RETURN QUERY SELECT u.username,
-                        u.display_name
+                        u.display_name,
+                        uf.created_at
                  FROM users.users tu
                           JOIN users.user_follow uf on tu.id = uf.from_user_id
                           JOIN users.users u ON u.id = uf.to_user_id
                  WHERE tu.username = p_username
-                 ORDER BY uf.created_at DESC;
+                   AND tu.deleted_at IS NULL
+                   AND u.deleted_at IS NULL
+                   AND uf.deleted_at IS NULL
+                   AND (
+                     p_last_created_at IS NULL
+                         OR uf.created_at < p_last_created_at
+                         OR (uf.created_at = p_last_created_at AND u.username > p_last_username)
+                     )
+                 ORDER BY uf.created_at DESC, u.username ASC
+                 LIMIT p_limit;
 END;
 $$ language plpgsql;
 
 
-CREATE OR REPLACE FUNCTION users.get_user_followers(p_username TEXT)
+CREATE OR REPLACE FUNCTION users.get_user_followers(
+    p_username TEXT,
+    p_limit INT DEFAULT 20,
+    p_last_created_at TIMESTAMPTZ DEFAULT NULL,
+    p_last_username TEXT DEFAULT NULL
+)
     RETURNS TABLE
             (
                 po_username   TEXT,
                 po_display_name TEXT,
-                is_subscribed BOOLEAN
+                is_subscribed BOOLEAN,
+                po_created_at TIMESTAMPTZ
             )
 AS
 $$
@@ -121,31 +176,56 @@ BEGIN
     RETURN QUERY SELECT u.username,
                         u.display_name,
                         exists(select 1 from users.user_follow uf1 where uf1.from_user_id = target_user_id 
-                                                                     AND uf1.to_user_id = u.id)
+                                                                     AND uf1.to_user_id = u.id
+                                                                     AND uf1.deleted_at IS NULL),
+                        uf.created_at
                  FROM users.user_follow uf
                           JOIN users.users u ON u.id = uf.from_user_id
                  WHERE uf.to_user_id = target_user_id 
                    AND u.deleted_at IS NULL
-                 ORDER BY uf.created_at DESC;
+                   AND uf.deleted_at IS NULL
+                   AND (
+                     p_last_created_at IS NULL
+                         OR uf.created_at < p_last_created_at
+                         OR (uf.created_at = p_last_created_at AND u.username > p_last_username)
+                     )
+                 ORDER BY uf.created_at DESC, u.username ASC
+                 LIMIT p_limit;
 END;
 $$ language plpgsql;
 
 
 
-CREATE OR REPLACE FUNCTION users.get_user_group_follows(p_username TEXT)
+CREATE OR REPLACE FUNCTION users.get_user_group_follows(
+    p_username TEXT,
+    p_limit INT DEFAULT 20,
+    p_last_created_at TIMESTAMPTZ DEFAULT NULL,
+    p_last_alias TEXT DEFAULT NULL
+)
     RETURNS TABLE
             (
-                po_alias TEXT
+                po_alias TEXT,
+                po_created_at TIMESTAMPTZ
             )
 AS
 $$
 BEGIN
-    RETURN QUERY SELECT g.alias
+    RETURN QUERY SELECT g.alias,
+                        gf.created_at
                  FROM users.users tu
                           JOIN users.group_follow gf on tu.id = gf.from_user_id
                           JOIN groups.groups g ON g.id = gf.group_id
                  WHERE tu.username = p_username
-                 ORDER BY gf.created_at DESC;
+                   AND tu.deleted_at IS NULL
+                   AND g.deleted_at IS NULL
+                   AND gf.deleted_at IS NULL
+                   AND (
+                     p_last_created_at IS NULL
+                         OR gf.created_at < p_last_created_at
+                         OR (gf.created_at = p_last_created_at AND g.alias > p_last_alias)
+                     )
+                 ORDER BY gf.created_at DESC, g.alias ASC
+                 LIMIT p_limit;
 END;
 $$ language plpgsql;
 
@@ -932,6 +1012,55 @@ BEGIN
     END IF;
 
     RETURN FOUND;
+END;
+$$ language plpgsql;
+
+CREATE OR REPLACE FUNCTION main.get_feed(p_limit INT DEFAULT 20,
+                                         p_last_created_at TIMESTAMPTZ DEFAULT NULL,
+                                         p_last_id BIGINT DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_id                BIGINT,
+                po_title             TEXT,
+                po_content_type      INT,
+                po_content           TEXT,
+                po_parent_post_id    BIGINT,
+                po_user_username     TEXT,
+                po_user_display_name TEXT,
+                po_comments_enabled  BOOLEAN,
+                po_comments_count    BIGINT,
+                po_replies_count     BIGINT,
+                po_created_at        timestamptz,
+                po_updated_at        timestamptz
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT p.id,
+                        p.title,
+                        p.content_type,
+                        p.content,
+                        p.parent_post_id,
+                        u.username,
+                        u.display_name,
+                        p.comments_enabled,
+                        COALESCE(ps.comments_count, 0),
+                        COALESCE(ps.replies_count, 0),
+                        p.created_at,
+                        p.updated_at
+                 FROM main.posts p
+                          JOIN main.user_posts up ON up.post_id = p.id
+                          JOIN users.users u on u.id = up.user_id
+                          LEFT JOIN main.post_stats ps on p.id = ps.post_id
+                 WHERE u.deleted_at IS NULL
+                   AND p.deleted_at IS NULL
+                   AND (
+                     p_last_created_at IS NULL
+                         OR p_last_id IS NULL
+                         OR (p.created_at, p.id) < (p_last_created_at, p_last_id)
+                     )
+                 ORDER BY p.created_at DESC, p.id DESC
+                 LIMIT p_limit;
 END;
 $$ language plpgsql;
 

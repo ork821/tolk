@@ -1,14 +1,15 @@
 "use client";
 
 import {useState} from "react";
+import {useInfiniteQuery} from "@tanstack/react-query";
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {Flame, Loader2, MessageCircle} from "lucide-react";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import {Button} from "@/components/ui/button";
-import {useQuery} from "@tanstack/react-query";
 import {SubmitForm} from "@/components/input-form";
-import {Comment, commentsApi} from "@/lib/api";
-import data from "@emoji-mart/data";
+import {api} from "@/lib/api";
+import type {Comment} from "@/lib/api";
+import {mapCommentsPageToComments} from "@/lib/api/comment-mappers";
 
 export type {Comment} from "@/lib/api";
 
@@ -18,16 +19,38 @@ export function CommentNode({comment}: {comment: Comment}) {
     const currentUser = {displayName: "Ninja", avatarUrl: "https://github.com/shadcn.png"};
     const {
         data,
-        isLoading,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
         isError,
         refetch,
-    } = useQuery({
-        queryKey: ["replies", comment.id],
-        queryFn: () => commentsApi.getReplies(comment.id),
+        status,
+    } = useInfiniteQuery({
+        queryKey: ["comments", comment.id, "replies"],
+        queryFn: async ({pageParam}) => {
+            const {data, error} = await api.GET("/v1/comments/{comment}/replies", {
+                params: {
+                    path: {
+                        comment: comment.id,
+                        version: "1",
+                    },
+                    query: pageParam ? {next_page_token: pageParam} : undefined,
+                },
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            return data;
+        },
         enabled: isExpanded && comment.replyCount > 0,
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (lastPage) => lastPage?.nextPageToken ?? undefined,
     });
 
-    const hasReplies =  comment.replyCount > 0;
+    const hasReplies = comment.replyCount > 0;
+    const replies = data?.pages.flatMap(mapCommentsPageToComments) ?? [];
 
     return (
         <div className="relative flex flex-col pt-3">
@@ -54,7 +77,7 @@ export function CommentNode({comment}: {comment: Comment}) {
                         <span className="cursor-pointer truncate text-sm font-bold hover:underline">
                             {comment.authorDisplayName}
                         </span>
-                        <span className="text-xs text-muted-foreground">В· {comment.createdAt}</span>
+                        <span className="text-xs text-muted-foreground">· {comment.createdAt}</span>
                     </div>
                     <div className="mt-0.5 break-words text-[15px] leading-snug text-foreground">
                         {comment.content}
@@ -79,7 +102,7 @@ export function CommentNode({comment}: {comment: Comment}) {
                         </button>
                     </div>
 
-                    {!isExpanded && comment.replyCount > 0 && (
+                    {!isExpanded && hasReplies && (
                         <Button
                             variant="link"
                             onClick={() => setIsExpanded(true)}
@@ -105,7 +128,7 @@ export function CommentNode({comment}: {comment: Comment}) {
 
             {isExpanded && (
                 <div className="flex flex-col">
-                    {isLoading && (
+                    {status === "pending" && (
                         <div className="flex items-center gap-2 py-2 pl-[48px] text-sm text-muted-foreground">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             Загрузка...
@@ -118,8 +141,8 @@ export function CommentNode({comment}: {comment: Comment}) {
                         </div>
                     )}
 
-                    {data?.comments.map((reply, index) => {
-                        const isLast = index === data?.comments.length - 1;
+                    {replies.map((reply, index) => {
+                        const isLast = index === replies.length - 1 && !hasNextPage;
 
                         return (
                             <div key={reply.id} className="relative pl-12">
@@ -138,6 +161,17 @@ export function CommentNode({comment}: {comment: Comment}) {
                             </div>
                         );
                     })}
+
+                    {hasNextPage && (
+                        <Button
+                            variant="link"
+                            disabled={isFetchingNextPage}
+                            onClick={() => fetchNextPage()}
+                            className="ml-12 mt-1 h-auto justify-start p-0 text-sm font-medium text-primary hover:no-underline"
+                        >
+                            {isFetchingNextPage ? "Загрузка..." : "Показать еще ответы"}
+                        </Button>
+                    )}
                 </div>
             )}
         </div>

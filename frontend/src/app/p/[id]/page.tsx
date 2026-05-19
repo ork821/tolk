@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import {useQuery} from "@tanstack/react-query";
 import {Loader2} from "lucide-react";
 import {ThreadNode} from "@/components/tread-node";
 import {BackButton} from "@/components/back-button";
@@ -9,15 +8,22 @@ import {PostCard} from "@/components/post-card";
 import {SubmitForm} from "@/components/input-form";
 import {CommentFeed} from "@/components/comment-feed";
 import {useAuth} from "@/hooks/use-auth";
-import {postsApi} from "@/lib/api";
+import {apiQuery} from "@/lib/api";
+import {mapPostDtosToPosts} from "@/lib/api/post-mappers";
 
 export default function PostThreadPage({params}: {params: Promise<{id: string}>}) {
     const {user} = useAuth();
     const resolvedParams = React.use(params);
     const postId = Number(resolvedParams.id);
-    const {data, status} = useQuery({
-        queryKey: ["posts", postId, "thread"],
-        queryFn: () => postsApi.getPostThread(postId),
+    const {data, status} = apiQuery.useQuery("get", "/v1/posts/{post}/thread", {
+        params: {
+            path: {
+                post: postId,
+                version: "1",
+            },
+        },
+    }, {
+        select: mapPostDtosToPosts,
     });
     let threadPosts = data ? data.slice(0, data.length - 1) : [];
     let mainPost = data ? data[data.length - 1] : undefined;

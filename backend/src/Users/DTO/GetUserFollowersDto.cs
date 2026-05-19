@@ -5,7 +5,8 @@ namespace TolkApi.Users.DTO;
 public record GetUserFollowersDto(
     string Username,
     string DisplayName,
-    bool IsSubscribed
+    bool IsSubscribed,
+    DateTime CreatedAt
 )
 {
     public static GetUserFollowersDto FromReader(NpgsqlDataReader reader)
@@ -13,7 +14,8 @@ public record GetUserFollowersDto(
         return new GetUserFollowersDto(
             reader.GetString(0),
             reader.GetString(1),
-            reader.GetBoolean(2)
+            reader.GetBoolean(2),
+            reader.GetDateTime(3)
         );
     }
 }

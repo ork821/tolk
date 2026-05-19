@@ -2,6 +2,7 @@ using Asp.Versioning;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TolkApi.Auth.DTO;
 using TolkApi.Auth.Providers;
 using TolkApi.Utility;
 
@@ -22,14 +23,17 @@ public class AuthController(
     private readonly AuthService _authService = authService;
 
     [HttpGet("providers")]
+    [ProducesResponseType(typeof(AuthProvidersDto), StatusCodes.Status200OK)]
     public IActionResult GetProviders()
     {
         // Возвращаем список доступных провайдеров
-        var providers = new[] { "vk", "yandex" };
-        return Ok(new { Providers = SupportedProviders.ToArray() });
+        return Ok(new AuthProvidersDto(SupportedProviders.ToArray()));
     }
 
     [HttpPost("{provider}")] // provider = "google"
+    [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> SocialLogin(string provider, [FromBody] OAuthLoginDto dto)
     {
         if (!SupportedProviders.Contains(provider)) return BadRequest("Provider is not supported");
@@ -70,16 +74,15 @@ public class AuthController(
             SameSite = SameSiteMode.Strict
         });
 
-        return Ok(new
-        {
-            AccessToken = accessToken,
-            Expires = expires
-        });
+        return Ok(new AuthTokenDto(accessToken, expires));
     }
 
     [Authorize]
     [HasRefresh]
     [HttpPost("refresh")]
+    [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult> RefreshTokens([FromUserId] Guid? claimUserId)
     {
         HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
@@ -114,16 +117,14 @@ public class AuthController(
             SameSite = SameSiteMode.Strict
         });
 
-        return Ok(new
-        {
-            AccessToken = accessToken,
-            Expires = expires
-        });
+        return Ok(new AuthTokenDto(accessToken, expires));
     }
 
     [Authorize]
     [HasRefresh]
     [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Logout(
         [FromUserId] Guid? userId
     )

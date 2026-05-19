@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using TolkApi.DTO;
 using TolkApi.Posts;
 using TolkApi.Reactions;
+using TolkApi.Reactions.DTO;
 using TolkApi.Utility;
 
 namespace TolkApi.Comments;
@@ -15,8 +16,11 @@ namespace TolkApi.Comments;
 public class CommentsController(CommentsService commentsService, SnowflakeIdGenerator idGenerator, ReactionService reactionService)
     : ControllerBase
 {
+    private const int RepliesPageSize = 10;
 
     [HttpGet("{comment:long}/replies")]
+    [ProducesResponseType(typeof(PagedCommentsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetReplies(
             [FromRoute] long comment, 
             [FromQuery(Name = "next_page_token")] string? nextPageToken
@@ -25,7 +29,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         CommentEntity[] comments = [];
         if (nextPageToken == null)
         {
-            comments = await commentsService.GetCommentReplies(comment, 10, null, null);
+            comments = await commentsService.GetCommentReplies(comment, RepliesPageSize + 1, null, null);
         }
         else
         {
@@ -34,20 +38,21 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
             {
                 return BadRequest("Invalid next page token");
             }
-            comments = await commentsService.GetCommentReplies(comment, 10, parseResult.lastCreatedAt, parseResult.lastId);
+            comments = await commentsService.GetCommentReplies(comment, RepliesPageSize + 1, parseResult.lastCreatedAt, parseResult.lastId);
         }
         
-        if (comments.Length == 0) return NoContent();
+        var page = comments.Take(RepliesPageSize).ToArray();
+        var nextToken = comments.Length <= RepliesPageSize
+            ? null
+            : CursorEncoder.Encode(page.Last().CreatedAt, page.Last().Id);
 
-        return  Ok(new
-        {
-            Comments = comments,
-            NextPageToken = CursorEncoder.Encode(comments.Last().CreatedAt, comments.Last().Id)
-        });
+        return  Ok(new PagedCommentsDto(page, nextToken));
     }
 
     [Authorize]
     [HttpPost("{comment:long}/replies")]
+    [ProducesResponseType(typeof(CreateUpdateCommentDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateReply(
         [FromRoute] long comment,
         [FromBody] CreateReplyCommentBodyDto body,
@@ -79,6 +84,8 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     
     [Authorize]
     [HttpPatch("{comment}")]
+    [ProducesResponseType(typeof(CreateUpdateCommentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateComment(
         [FromRoute] long comment,
         [FromBody] UpdateCommentBodyDto body,
@@ -108,6 +115,8 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     
     [Authorize]
     [HttpDelete("{comment}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteComment(
         [FromRoute] long comment,
         [FromUserId] Guid userId
@@ -127,6 +136,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     }
 
     [HttpGet("{comment:long}/reactions")]
+    [ProducesResponseType(typeof(GetReactionsDto[]), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReactions([FromRoute] long comment)
     {
         var reactions = await reactionService.GetCommentReactions(comment);
@@ -136,6 +146,8 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     
     [Authorize]
     [HttpPut("{comment:long}/reactions/{reaction}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddCommentReaction(
         [FromRoute] long comment,
         [FromRoute] string reaction,
@@ -158,6 +170,8 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     
     [Authorize]
     [HttpDelete("{comment:long}/reactions/{reaction}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteCommentReaction(
         [FromRoute] long comment,
         [FromRoute] string reaction,

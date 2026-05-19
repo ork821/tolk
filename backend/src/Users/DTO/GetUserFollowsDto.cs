@@ -4,14 +4,16 @@ namespace TolkApi.Users.DTO;
 
 public record GetUserFollowsDto(
     string Username,
-    string DisplayName
+    string DisplayName,
+    DateTime CreatedAt
 )
 {
     public static GetUserFollowsDto FromReader(NpgsqlDataReader reader)
     {
         return new GetUserFollowsDto(
             reader.GetString(0),
-            reader.GetString(1)
+            reader.GetString(1),
+            reader.GetDateTime(2)
             );
     }
 }

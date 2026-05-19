@@ -37,28 +37,38 @@ public class UsersService(DatabaseContext databaseContext)
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        if (await reader.ReadAsync())
-            return new GetUserByUsernameDto(
-                reader.GetGuid(0),
-                reader.GetString(1),
-                reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.GetInt64(5),
-                reader.GetInt64(6),
-                reader.GetInt64(7),
-                reader.GetInt64(8)
-            );
+        if (await reader.ReadAsync()) return GetUserByUsernameDto.FromReader(reader);
 
         return null;
     }
 
-    public async Task<GetUserFollowersDto[]> GetUserFollowers(string username)
+    public async Task<GetUserByUsernameDto?> GetUserById(Guid userId)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_followers(@username)");
+            .CreateCommand(@"SELECT * FROM users.get_user_by_id(@userId)");
+
+        command.Parameters.AddWithValue("@userId", userId);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync()) return GetUserByUsernameDto.FromReader(reader);
+
+        return null;
+    }
+
+    public async Task<GetUserFollowersDto[]> GetUserFollowers(
+        string username,
+        int limit,
+        DateTime? lastCreatedAt,
+        string? lastUsername)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM users.get_user_followers(@username, @limit, @lastCreatedAt, @lastUsername)");
 
         command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
+        command.Parameters.AddWithValue("@lastUsername", lastUsername != null ? lastUsername : DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -70,12 +80,19 @@ public class UsersService(DatabaseContext databaseContext)
     }
 
 
-    public async Task<GetUserFollowsDto[]> GetUserFollows(string username)
+    public async Task<GetUserFollowsDto[]> GetUserFollows(
+        string username,
+        int limit,
+        DateTime? lastCreatedAt,
+        string? lastUsername)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_follows(@username)");
+            .CreateCommand(@"SELECT * FROM users.get_user_follows(@username, @limit, @lastCreatedAt, @lastUsername)");
 
         command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
+        command.Parameters.AddWithValue("@lastUsername", lastUsername != null ? lastUsername : DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -86,18 +103,25 @@ public class UsersService(DatabaseContext databaseContext)
         return followers.ToArray();
     }
 
-    public async Task<GetUserFollowingGroupsDto[]> GetUserFollowingGroups(string username)
+    public async Task<GetUserFollowingGroupsDto[]> GetUserFollowingGroups(
+        string username,
+        int limit,
+        DateTime? lastCreatedAt,
+        string? lastAlias)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_group_follows(@username)");
+            .CreateCommand(@"SELECT * FROM users.get_user_group_follows(@username, @limit, @lastCreatedAt, @lastAlias)");
 
         command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
+        command.Parameters.AddWithValue("@lastAlias", lastAlias != null ? lastAlias : DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
         var followers = new List<GetUserFollowingGroupsDto>();
 
-        while (await reader.ReadAsync()) followers.Add(new GetUserFollowingGroupsDto(reader.GetString(0)));
+        while (await reader.ReadAsync()) followers.Add(new GetUserFollowingGroupsDto(reader.GetString(0), reader.GetDateTime(1)));
 
         return followers.ToArray();
     }
