@@ -2,21 +2,18 @@
 
 import {useState} from "react";
 import {useInfiniteQuery} from "@tanstack/react-query";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Flame, Loader2, MessageCircle} from "lucide-react";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import {Button} from "@/components/ui/button";
 import {SubmitForm} from "@/components/input-form";
-import {api} from "@/lib/api";
-import type {Comment} from "@/lib/api";
-import {mapCommentsPageToComments} from "@/lib/api/comment-mappers";
-
-export type {Comment} from "@/lib/api";
+import {client, type Comment} from "@/lib/api";
+import {useAuth} from "@/hooks/use-auth";
 
 export function CommentNode({comment}: {comment: Comment}) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
-    const currentUser = {displayName: "Ninja", avatarUrl: "https://github.com/shadcn.png"};
+    const currentUser = useAuth();
     const {
         data,
         fetchNextPage,
@@ -28,7 +25,7 @@ export function CommentNode({comment}: {comment: Comment}) {
     } = useInfiniteQuery({
         queryKey: ["comments", comment.id, "replies"],
         queryFn: async ({pageParam}) => {
-            const {data, error} = await api.GET("/v1/comments/{comment}/replies", {
+            const {data, error} = await client.GET("/v1/comments/{comment}/replies", {
                 params: {
                     path: {
                         comment: comment.id,
@@ -42,22 +39,25 @@ export function CommentNode({comment}: {comment: Comment}) {
                 throw error;
             }
 
+            if (!data) {
+                throw new Error("Failed to load comment replies");
+            }
+
             return data;
         },
-        enabled: isExpanded && comment.replyCount > 0,
+        enabled: isExpanded && comment.repliesCount > 0,
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (lastPage) => lastPage?.nextPageToken ?? undefined,
     });
 
-    const hasReplies = comment.replyCount > 0;
-    const replies = data?.pages.flatMap(mapCommentsPageToComments) ?? [];
+    const hasReplies = comment.repliesCount > 0;
+    const replies = data?.pages.flatMap((page) => page.comments) ?? [];
 
     return (
         <div className="relative flex flex-col pt-3">
             <div className="flex gap-3">
                 <div className="flex w-9 shrink-0 flex-col items-center">
                     <Avatar className="h-9 w-9 border border-background">
-                        <AvatarImage src={comment.authorAvatar} alt={comment.authorUsername} />
                         <AvatarFallback>{comment.authorDisplayName[0]}</AvatarFallback>
                     </Avatar>
 
@@ -109,7 +109,7 @@ export function CommentNode({comment}: {comment: Comment}) {
                             className="mt-1 flex h-auto items-center gap-3 p-0 text-sm font-medium text-primary hover:no-underline"
                         >
                             <div className="inline-block h-0.5 w-6 bg-border" />
-                            Посмотреть ответы ({formatCompactNumber(comment.replyCount)})
+                            Посмотреть ответы ({formatCompactNumber(comment.repliesCount)})
                         </Button>
                     )}
 

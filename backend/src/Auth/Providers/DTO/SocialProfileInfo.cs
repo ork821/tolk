@@ -1,3 +1,11 @@
-﻿namespace TolkApi.Auth.Providers.DTO;
+using System.ComponentModel.DataAnnotations;
 
-public record SocialProfileInfo(string Id, string? Username, string? Email, string? DisplayName);
+namespace TolkApi.Auth.Providers.DTO;
+
+public record SocialProfileInfo(
+    [property: Required]
+    string Id,
+    string? Username,
+    string? Email,
+    string? DisplayName
+);

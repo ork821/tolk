@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import {useQuery} from "@tanstack/react-query";
 import {Loader2} from "lucide-react";
 import {ThreadNode} from "@/components/tread-node";
 import {BackButton} from "@/components/back-button";
@@ -8,25 +9,40 @@ import {PostCard} from "@/components/post-card";
 import {SubmitForm} from "@/components/input-form";
 import {CommentFeed} from "@/components/comment-feed";
 import {useAuth} from "@/hooks/use-auth";
-import {apiQuery} from "@/lib/api";
-import {mapPostDtosToPosts} from "@/lib/api/post-mappers";
+import {client} from "@/lib/api";
 
 export default function PostThreadPage({params}: {params: Promise<{id: string}>}) {
     const {user} = useAuth();
     const resolvedParams = React.use(params);
     const postId = Number(resolvedParams.id);
-    const {data, status} = apiQuery.useQuery("get", "/v1/posts/{post}/thread", {
-        params: {
-            path: {
-                post: postId,
-                version: "1",
-            },
+
+    const {data, status} = useQuery({
+        queryKey: ["posts", postId, "thread"],
+        queryFn: async () => {
+            const {data, error} = await client.GET("/v1/posts/{post}/thread", {
+                params: {
+                    path: {
+                        post: postId,
+                        version: "1",
+                    },
+                },
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            if (!data) {
+                throw new Error("Failed to load post thread");
+            }
+
+            return data;
         },
-    }, {
-        select: mapPostDtosToPosts,
+        enabled: Number.isFinite(postId),
     });
-    let threadPosts = data ? data.slice(0, data.length - 1) : [];
-    let mainPost = data ? data[data.length - 1] : undefined;
+
+    const threadPosts = data ? data.slice(0, data.length - 1) : [];
+    const mainPost = data ? data[data.length - 1] : undefined;
 
     return (
         <div className="flex min-h-screen flex-col pb-20">
@@ -49,7 +65,7 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                         <ThreadNode
                             key={post.id}
                             post={post}
-                            isLast={index === data.length - 1}
+                            isLast={index === threadPosts.length - 1}
                         />
                     ))}
 
@@ -69,7 +85,7 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                         </div>
 
                         <div className="divide-y divide-border">
-                            {!mainPost.commentsEnabled ? (
+                            {!mainPost.isCommentsEnabled ? (
                                 <div className="p-10 text-center italic text-muted-foreground">
                                     Комментарии выключены!
                                 </div>

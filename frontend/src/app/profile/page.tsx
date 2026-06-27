@@ -2,17 +2,16 @@
 
 import {useEffect} from "react";
 import {useRouter} from "next/navigation";
+import {Loader2} from "lucide-react";
 import {useAuth} from "@/hooks/use-auth";
-import {ProfileHeader, ProfileUser} from "@/components/profile-header";
+import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {PostFeed} from "@/components/post-feed";
 import {SubmitForm} from "@/components/input-form";
-import {Loader2} from "lucide-react";
-import {postsApi} from "@/lib/api";
+import {getUserPosts} from "@/lib/api";
 
-// Функция для загрузки постов текущего пользователя (имитация)
 export default function MyProfilePage() {
-    const { user, isAuthenticated, isLoading } = useAuth();
+    const {user, isAuthenticated, isLoading} = useAuth();
     const router = useRouter();
 
     useEffect(() => {
@@ -31,32 +30,28 @@ export default function MyProfilePage() {
 
     if (!user) return null;
 
-    // Преобразуем объект User из хука в ProfileUser для хедера
+    const username = user.username;
+
     const profileData: ProfileUser = {
         displayName: user.displayName,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        description: "Пишу код, пью кофе. Это мой личный профиль в Social.App! 🚀",
-        stats: { following: 142, followers: 1042 } 
+        username,
+        description: user.description ?? "",
+        stats: {
+            following: user.followUserCount,
+            followers: user.followersCount,
+        },
     };
 
     return (
         <div className="flex flex-col w-full min-h-screen bg-background pb-20">
-            {/* 
-                Шапка профиля. 
-                Мы убрали pt-2 и добавили ProfileHeader, который теперь сам рисует 
-                баннер и правильно позиционирует аватарку, не давая ей вылезать за границы.
-            */}
             <div className="flex flex-col gap-4">
-                <ProfileHeader user={profileData} isCurrentUser={true} />
+                <ProfileHeader user={profileData} isCurrentUser />
             </div>
 
-            {/* Форма создания поста с современным дизайном */}
             <div className="mb-6 mt-6 bg-background border border-border/50 rounded-3xl shadow-sm overflow-hidden">
                 <SubmitForm placeholder="Поделитесь чем-нибудь интересным..." />
             </div>
 
-            {/* 2. Основной контент с табами */}
             <Tabs defaultValue="posts" className="w-full mt-6">
                 <TabsList className="w-full h-12 justify-between rounded-xl border-b bg-transparent p-0 px-2">
                     <TabsTrigger
@@ -81,8 +76,8 @@ export default function MyProfilePage() {
 
                 <TabsContent value="posts" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
                     <PostFeed
-                        queryKey={["posts", "user", "me"]}
-                        fetchFn={postsApi.getMyPosts}
+                        queryKey={["posts", "user", username]}
+                        fetchFn={(params) => getUserPosts(username, params)}
                     />
                 </TabsContent>
 
@@ -91,7 +86,7 @@ export default function MyProfilePage() {
                 </TabsContent>
 
                 <TabsContent value="reactions" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Посты, на которые вы отреагировали огоньком 🔥</p>
+                    <p className="text-muted-foreground font-medium italic">Посты, на которые вы отреагировали, появятся здесь.</p>
                 </TabsContent>
             </Tabs>
         </div>

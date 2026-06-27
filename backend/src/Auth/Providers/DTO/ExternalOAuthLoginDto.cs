@@ -1,3 +1,12 @@
-﻿namespace TolkApi.Auth.Providers.DTO;
+using System.ComponentModel.DataAnnotations;
 
-public record ExternalOAuthLoginDto(Guid UserId, string Username, bool IsNew);
+namespace TolkApi.Auth.Providers.DTO;
+
+public record ExternalOAuthLoginDto(
+    [property: Required]
+    Guid UserId,
+    [property: Required]
+    string Username,
+    [property: Required]
+    bool IsNew
+);

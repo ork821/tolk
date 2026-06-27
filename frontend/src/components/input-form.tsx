@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React, {useEffect, useRef, useState} from "react";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {Smile} from "lucide-react";
 import {useAuth} from "@/hooks/use-auth";
@@ -9,7 +9,6 @@ import {cn} from "@/lib/utils";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
-import {postsApi} from "@/lib/api";
 
 interface SubmitFormProps {
     onSubmit?: (content: string) => Promise<void>; // Кастомная логика отправки (если нужна)
@@ -91,7 +90,6 @@ export function SubmitForm({
         )}>
             {/* Аватарка (уменьшается в компактном режиме) */}
             <Avatar className={cn("shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}>
-                <AvatarImage src={user.avatarUrl} />
                 <AvatarFallback>{user.displayName[0]}</AvatarFallback>
             </Avatar>
 

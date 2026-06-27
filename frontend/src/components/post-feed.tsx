@@ -6,13 +6,13 @@ import {useInView} from "react-intersection-observer";
 
 import {PostCardSkeleton} from "@/components/post-card-skeleton";
 import {PostCard} from "@/components/post-card";
-import {PostsPageResponse} from "@/lib/api";
+import type {PostsPageResponse} from "@/lib/api";
 
 export type {PostsPageResponse} from "@/lib/api";
 
 interface PostFeedProps {
     queryKey: string[]; // Ключ для кеша (например: ['posts', 'feed'] или ['posts', 'user', '123'])
-    fetchFn: ({ pageParam }: { pageParam: number }) => Promise<PostsPageResponse>;
+    fetchFn: ({ nextPageToken }: { nextPageToken: string | null }) => Promise<PostsPageResponse>;
 }
 
 export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
@@ -29,9 +29,9 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
         status,
     } = useInfiniteQuery({
         queryKey,
-        queryFn: fetchFn,
-        initialPageParam: 0, // Начальная страница или курсор
-        getNextPageParam: (lastPage) => lastPage.nextCursor, // React Query сам поймет, когда данные кончились (если вернется null)
+        queryFn: ({pageParam}) => fetchFn({nextPageToken: pageParam}),
+        initialPageParam: null as string | null,
+        getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
     });
 
     // Эффект: загружаем следующую страницу, когда якорь появляется на экране

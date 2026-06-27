@@ -1,10 +1,16 @@
-﻿using Npgsql;
+using System.ComponentModel.DataAnnotations;
+using Npgsql;
 
 namespace TolkApi.Users.DTO;
 
 public record GetUserFollowsDto(
+    [property: Required]
     string Username,
+    [property: Required]
     string DisplayName,
+    [property: Required]
+    bool IsSubscribed,
+    [property: Required]
     DateTime CreatedAt
 )
 {
@@ -13,7 +19,8 @@ public record GetUserFollowsDto(
         return new GetUserFollowsDto(
             reader.GetString(0),
             reader.GetString(1),
-            reader.GetDateTime(2)
-            );
+            reader.GetBoolean(2),
+            reader.GetDateTime(3)
+        );
     }
 }

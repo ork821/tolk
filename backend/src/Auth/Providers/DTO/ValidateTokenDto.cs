@@ -1,3 +1,12 @@
-﻿namespace TolkApi.Auth.Providers.DTO;
+using System.ComponentModel.DataAnnotations;
 
-public record ValidateTokenDto(Guid UserId, bool Revoked, bool IsValid);
+namespace TolkApi.Auth.Providers.DTO;
+
+public record ValidateTokenDto(
+    [property: Required]
+    Guid UserId,
+    [property: Required]
+    bool Revoked,
+    [property: Required]
+    bool IsValid
+);

@@ -1,21 +1,41 @@
-﻿"use client"; // В реальности тут может быть серверный компонент, который загружает юзера, а табы - клиентские
+"use client";
 
-import {ProfileHeader} from "@/components/profile-header";
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
-import {PostFeed} from "@/components/post-feed";
 import {use} from "react";
-import {postsApi, usersApi} from "@/lib/api";
 import {useQuery} from "@tanstack/react-query";
 import {Loader2} from "lucide-react";
+import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import {PostFeed} from "@/components/post-feed";
+import {client, getUserPosts} from "@/lib/api";
+import {useAuth} from "@/hooks/use-auth";
 
-export default function UserProfilePage({ params }: { params: Promise<{ username: string }> }) {
-    const resolvedParams = use(params);
+export default function UserProfilePage({params}: {params: Promise<{ username: string }>}) {
+    const {username} = use(params);
+    const {user: currentUser} = useAuth();
+
     const {data: profile, status} = useQuery({
-        queryKey: ["users", resolvedParams.username],
-        queryFn: () => usersApi.getProfile(resolvedParams.username),
+        queryKey: ["users", username],
+        queryFn: async () => {
+            const {data, error} = await client.GET("/v1/users/{username}", {
+                params: {
+                    path: {
+                        username,
+                        version: "1",
+                    },
+                },
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            if (!data) {
+                throw new Error("Failed to load user profile");
+            }
+
+            return data;
+        },
     });
-    // Для примера: если username совпадает с твоим, показываем кнопку "Редактировать"
-    const isCurrentUser = resolvedParams.username === "react_ninja";
 
     if (status === "pending") {
         return (
@@ -25,17 +45,29 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
         );
     }
 
-    if (!profile) {
-        return null;
+    if (status === "error" || !profile) {
+        return (
+            <div className="rounded-3xl border border-dashed p-10 text-center text-destructive">
+                Не удалось загрузить профиль.
+            </div>
+        );
     }
+
+    const profileData: ProfileUser = {
+        displayName: profile.displayName,
+        username: profile.username,
+        description: profile.description ?? "",
+        stats: {
+            following: profile.followUserCount,
+            followers: profile.followersCount,
+        },
+    };
+    const isCurrentUser = currentUser?.username === profile.username;
 
     return (
         <div className="flex flex-col w-full min-h-screen bg-background pb-20">
-            {/* Hero-секция профиля */}
-            <ProfileHeader user={profile} isCurrentUser={isCurrentUser} isSubscribedProp={profile.isSubscribed} />
+            <ProfileHeader user={profileData} isCurrentUser={isCurrentUser} />
 
-            {/* Вкладки навигации */}
-            {/* 2. Основной контент с табами */}
             <Tabs defaultValue="posts" className="w-full mt-6">
                 <TabsList className="w-full h-12 justify-between rounded-xl border-b bg-transparent p-0 px-2">
                     <TabsTrigger
@@ -60,20 +92,19 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
 
                 <TabsContent value="posts" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
                     <PostFeed
-                        queryKey={["posts", "user", resolvedParams.username]}
-                        fetchFn={({pageParam}) => postsApi.getUserPosts(resolvedParams.username, {pageParam})}
+                        queryKey={["posts", "user", username]}
+                        fetchFn={(params) => getUserPosts(username, params)}
                     />
                 </TabsContent>
 
                 <TabsContent value="replies" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Ваши ответы появятся здесь.</p>
+                    <p className="text-muted-foreground font-medium italic">Ответы появятся здесь.</p>
                 </TabsContent>
 
                 <TabsContent value="reactions" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Посты, на которые вы отреагировали огоньком 🔥</p>
+                    <p className="text-muted-foreground font-medium italic">Посты, на которые пользователь отреагировал, появятся здесь.</p>
                 </TabsContent>
             </Tabs>
-
         </div>
     );
 }

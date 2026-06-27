@@ -60,15 +60,17 @@ public class UsersService(DatabaseContext databaseContext)
         string username,
         int limit,
         DateTime? lastCreatedAt,
-        string? lastUsername)
+        string? lastUsername,
+        Guid? myUserId)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_followers(@username, @limit, @lastCreatedAt, @lastUsername)");
+            .CreateCommand(@"SELECT * FROM users.get_user_followers(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@limit", limit);
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
         command.Parameters.AddWithValue("@lastUsername", lastUsername != null ? lastUsername : DBNull.Value);
+        command.Parameters.AddWithValue("@myUserId", myUserId != null ? myUserId : DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -84,15 +86,17 @@ public class UsersService(DatabaseContext databaseContext)
         string username,
         int limit,
         DateTime? lastCreatedAt,
-        string? lastUsername)
+        string? lastUsername,
+        Guid? myUserId)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_follows(@username, @limit, @lastCreatedAt, @lastUsername)");
+            .CreateCommand(@"SELECT * FROM users.get_user_follows(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@limit", limit);
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
         command.Parameters.AddWithValue("@lastUsername", lastUsername != null ? lastUsername : DBNull.Value);
+        command.Parameters.AddWithValue("@myUserId", myUserId != null ? myUserId : DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 

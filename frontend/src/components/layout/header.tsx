@@ -4,7 +4,7 @@ import Link from "next/link";
 import {MobileNav} from "./mobile-nav";
 import {Button} from "@/components/ui/button";
 import {Search} from "lucide-react";
-import {useState, useEffect, Suspense} from "react";
+import {Suspense, useEffect, useState} from "react";
 import {useRouter, useSearchParams} from "next/navigation";
 
 function BrandLogo() {

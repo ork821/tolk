@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import {useState} from "react";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
-import {FollowListUser, usersApi} from "@/lib/api";
-import {cn, formatCompactNumber} from "@/lib/utils";
+import {setUserFollow, type FollowListUser} from "@/lib/api";
+import {cn} from "@/lib/utils";
 import {useAuth} from "@/hooks/use-auth";
 import {Skeleton} from "@/components/ui/skeleton";
 
@@ -26,7 +26,7 @@ function FollowListItem({ user }: { user: FollowListUser }) {
         setIsPending(true);
 
         try {
-            await usersApi.toggleSubscription(user.username, nextValue);
+            await setUserFollow(user.username, nextValue);
         } catch (error) {
             setIsSubscribed(!nextValue);
             console.error("Не удалось изменить подписку", error);
@@ -39,7 +39,6 @@ function FollowListItem({ user }: { user: FollowListUser }) {
         <div className="flex gap-3 border-b border-border/60 p-4 last:border-b-0">
             <Link href={`/u/${user.username}`} className="shrink-0">
                 <Avatar className="size-12">
-                    <AvatarImage src={user.avatarUrl ?? undefined} alt={user.username} />
                     <AvatarFallback>{user.displayName[0]}</AvatarFallback>
                 </Avatar>
             </Link>

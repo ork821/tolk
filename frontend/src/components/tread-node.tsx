@@ -1,6 +1,6 @@
 "use client";
 
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import Link from "next/link";
@@ -55,11 +55,7 @@ export function ThreadNode({ post, isLast = false}: ThreadNodeProps) {
             {/* Левая колонка: Аватар и соединительная линия */}
             <div className="flex flex-col items-center">
                 <Avatar className="size-10 shrink-0">
-                    {
-                        post.authorAvatar !== null ?
-                            <AvatarImage src={post.authorAvatar} alt={post.authorUsername}/> :
-                            <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
-                    }
+                    <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
                 </Avatar>
 
                 {/* Вертикальная линия треда */}

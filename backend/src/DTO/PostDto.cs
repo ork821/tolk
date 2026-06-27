@@ -1,18 +1,29 @@
-﻿using Npgsql;
+using System.ComponentModel.DataAnnotations;
+using Npgsql;
 
 namespace TolkApi.DTO;
 
 public record PostDto(
+    [property: Required]
     long Id,
+    [property: Required]
     string Title,
+    [property: Required]
     int ContentType,
+    [property: Required]
     string Content,
     long? ParentPostId,
+    [property: Required]
     string AuthorUsername,
+    [property: Required]
     string AuthorDisplayName,
+    [property: Required]
     bool IsCommentsEnabled,
+    [property: Required]
     long CommentsCount,
+    [property: Required]
     long RepliesCount,
+    [property: Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt
 )

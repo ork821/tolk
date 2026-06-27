@@ -1,3 +1,10 @@
-﻿namespace TolkApi.Reactions.DTO;
+using System.ComponentModel.DataAnnotations;
 
-public record GetReactionsDto(string Name, long Count);
+namespace TolkApi.Reactions.DTO;
+
+public record GetReactionsDto(
+    [property: Required]
+    string Name,
+    [property: Required]
+    long Count
+);

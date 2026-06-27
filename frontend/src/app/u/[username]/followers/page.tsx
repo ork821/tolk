@@ -5,12 +5,11 @@ import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 import {BackButton} from "@/components/back-button";
 import {FollowList, FollowListSkeleton} from "@/components/follow-list";
-import {api} from "@/lib/api";
-import {mapFollowersPageToFollowListUsers} from "@/lib/api/follow-mappers";
+import {getUserFollowers} from "@/lib/api";
 
-export default function FollowersPage({ params }: { params: Promise<{ username: string }> }) {
-    const { username } = use(params);
-    const { ref, inView } = useInView({ rootMargin: "500px" });
+export default function FollowersPage({params}: {params: Promise<{ username: string }>}) {
+    const {username} = use(params);
+    const {ref, inView} = useInView({rootMargin: "500px"});
     const {
         data,
         fetchNextPage,
@@ -19,25 +18,9 @@ export default function FollowersPage({ params }: { params: Promise<{ username: 
         status,
     } = useInfiniteQuery({
         queryKey: ["user-connections", username, "followers"],
-        queryFn: async ({pageParam}) => {
-            const {data, error} = await api.GET("/v1/users/{username}/followers", {
-                params: {
-                    path: {
-                        username,
-                        version: "1",
-                    },
-                    query: pageParam ? {next_page_token: pageParam} : undefined,
-                },
-            });
-
-            if (error) {
-                throw error;
-            }
-
-            return data;
-        },
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (lastPage) => lastPage?.nextPageToken ?? undefined,
+        queryFn: ({pageParam}) => getUserFollowers(username, {nextPageToken: pageParam}),
+        initialPageParam: null as string | null,
+        getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
     });
 
     useEffect(() => {
@@ -46,7 +29,7 @@ export default function FollowersPage({ params }: { params: Promise<{ username: 
         }
     }, [fetchNextPage, hasNextPage, inView, isFetchingNextPage]);
 
-    const users = data?.pages.flatMap(mapFollowersPageToFollowListUsers) ?? [];
+    const users = data?.pages.flatMap((page) => page.followers) ?? [];
 
     return (
         <div className="flex min-h-screen flex-col gap-5 pb-20 mt-6">

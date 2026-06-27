@@ -1,16 +1,24 @@
+using System.ComponentModel.DataAnnotations;
 using Npgsql;
 
 namespace TolkApi.Users.DTO;
 
 public record GetUserByUsernameDto(
+    [property: Required]
     Guid Id,
+    [property: Required]
     string Username,
+    [property: Required]
     string DisplayName,
     string? Email,
     string? Description,
+    [property: Required]
     long Karma,
+    [property: Required]
     long FollowersCount,
+    [property: Required]
     long FollowUserCount,
+    [property: Required]
     long FollowGroupsCount
 )
 {

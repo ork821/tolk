@@ -117,6 +117,7 @@ builder.Services.AddControllers(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SupportNonNullableReferenceTypes();
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "Tolk API",

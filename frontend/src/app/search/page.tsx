@@ -4,7 +4,6 @@ import {Suspense, useEffect, useState} from "react";
 import {useSearchParams} from "next/navigation";
 import {Loader2} from "lucide-react";
 import {PostCard, PostCardProps} from "@/components/post-card";
-import {postsApi} from "@/lib/api";
 
 function SearchResults() {
     const searchParams = useSearchParams();

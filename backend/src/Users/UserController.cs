@@ -88,7 +88,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUserFollows(
         [FromRoute] string username,
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        [FromUserId] Guid? myUserId)
     {
         GetUserFollowsDto[] follows;
         if (nextPageToken != null)
@@ -97,11 +98,11 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            follows = await usersService.GetUserFollows(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+            follows = await usersService.GetUserFollows(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
         }
         else
         {
-            follows = await usersService.GetUserFollows(username, PageSize + 1, null, null);
+            follows = await usersService.GetUserFollows(username, PageSize + 1, null, null, myUserId);
         }
 
         var followsPage = follows.Take(PageSize).ToArray();
@@ -146,7 +147,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUserFollowers(
         [FromRoute] string username,
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        [FromUserId] Guid? myUserId)
     {
         GetUserFollowersDto[] followers;
         if (nextPageToken != null)
@@ -155,11 +157,11 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            followers = await usersService.GetUserFollowers(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+            followers = await usersService.GetUserFollowers(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
         }
         else
         {
-            followers = await usersService.GetUserFollowers(username, PageSize + 1, null, null);
+            followers = await usersService.GetUserFollowers(username, PageSize + 1, null, null, myUserId);
         }
 
         var followersPage = followers.Take(PageSize).ToArray();

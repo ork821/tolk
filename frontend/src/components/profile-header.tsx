@@ -6,7 +6,7 @@ import {useAuth} from "@/hooks/use-auth";
 import {formatCompactNumber} from "@/lib/utils";
 import Link from "next/link";
 import {useState} from "react";
-import {usersApi} from "@/lib/api";
+import {client} from "@/lib/api";
 
 export interface ProfileUser {
     displayName: string;
@@ -38,7 +38,25 @@ export function ProfileHeader({ user, isCurrentUser = false, isSubscribedProp = 
         setFollowersCount(prev => isSubscribed ? prev - 1 : prev + 1);
 
         try {
-            await usersApi.toggleSubscription(user.username, nextSubscribed);
+            if (nextSubscribed) {
+                await client.POST("/v1/users/{username}/follow", {
+                    params: {
+                        path: {
+                            username: user.username,
+                            version: "v1"
+                        }
+                    }
+                });
+            } else {
+                await client.DELETE("/v1/users/{username}/follow", {
+                    params: {
+                        path: {
+                            username: user.username,
+                            version: "v1"
+                        }
+                    }
+                })
+            }
         } catch (error) {
             setIsSubscribed(!nextSubscribed);
             setFollowersCount(prev => nextSubscribed ? prev - 1 : prev + 1);

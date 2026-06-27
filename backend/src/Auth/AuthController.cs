@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Asp.Versioning;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -140,6 +141,7 @@ public class AuthController(
 
 // DTO для авторизации
 public record OAuthLoginDto(
+    [property: Required]
     string Token,
     string? RedirectUri
 );

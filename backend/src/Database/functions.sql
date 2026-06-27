@@ -118,12 +118,14 @@ CREATE OR REPLACE FUNCTION users.get_user_follows(
     p_username TEXT,
     p_limit INT DEFAULT 20,
     p_last_created_at TIMESTAMPTZ DEFAULT NULL,
-    p_last_username TEXT DEFAULT NULL
+    p_last_username TEXT DEFAULT NULL,
+    p_my_user_id UUID DEFAULT NULL
 )
     RETURNS TABLE
             (
                 po_username TEXT,
                 po_display_name TEXT,
+                is_subscribed BOOLEAN,
                 po_created_at TIMESTAMPTZ
             )
 AS
@@ -131,6 +133,16 @@ $$
 BEGIN
     RETURN QUERY SELECT u.username,
                         u.display_name,
+                        CASE
+                            WHEN p_my_user_id IS NULL THEN FALSE
+                            ELSE EXISTS(
+                                SELECT 1
+                                FROM users.user_follow muf
+                                WHERE muf.from_user_id = p_my_user_id
+                                  AND muf.to_user_id = u.id
+                                  AND muf.deleted_at IS NULL
+                            )
+                        END,
                         uf.created_at
                  FROM users.users tu
                           JOIN users.user_follow uf on tu.id = uf.from_user_id
@@ -154,7 +166,8 @@ CREATE OR REPLACE FUNCTION users.get_user_followers(
     p_username TEXT,
     p_limit INT DEFAULT 20,
     p_last_created_at TIMESTAMPTZ DEFAULT NULL,
-    p_last_username TEXT DEFAULT NULL
+    p_last_username TEXT DEFAULT NULL,
+    p_my_user_id UUID DEFAULT NULL
 )
     RETURNS TABLE
             (
@@ -175,9 +188,12 @@ BEGIN
         
     RETURN QUERY SELECT u.username,
                         u.display_name,
-                        exists(select 1 from users.user_follow uf1 where uf1.from_user_id = target_user_id 
-                                                                     AND uf1.to_user_id = u.id
-                                                                     AND uf1.deleted_at IS NULL),
+                        CASE
+                            WHEN p_my_user_id IS NULL THEN FALSE
+                            ELSE EXISTS(select 1 from users.user_follow uf1 where uf1.from_user_id = p_my_user_id
+                                                                         AND uf1.to_user_id = u.id
+                                                                         AND uf1.deleted_at IS NULL)
+                        END,
                         uf.created_at
                  FROM users.user_follow uf
                           JOIN users.users u ON u.id = uf.from_user_id

@@ -4,9 +4,11 @@ import Link from "next/link";
 import {usePathname, useRouter} from "next/navigation";
 import {Bookmark, Home, LogOut, TrendingUp} from "lucide-react";
 import {cn} from "@/lib/utils";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {useAuth} from "@/hooks/use-auth";
 import {Skeleton} from "@/components/ui/skeleton";
+// Added missing Button import since it's used in the Guest view but might have been removed or lost if I just deleted the other button
+import {Button} from "@/components/ui/button";
 
 const NAV_ITEMS = [
     { icon: Home, label: "Главная", href: "/" },
@@ -74,7 +76,6 @@ export function Sidebar() {
                         className="flex items-center justify-start rounded-full p-2 hover:bg-accent transition-colors group cursor-pointer"
                     >
                         <Avatar className="h-10 w-10 shrink-0">
-                            <AvatarImage src={currentUser.avatarUrl} />
                             <AvatarFallback>{currentUser.displayName[0]}</AvatarFallback>
                         </Avatar>
 
@@ -110,5 +111,3 @@ export function Sidebar() {
     );
 }
 
-// Added missing Button import since it's used in the Guest view but might have been removed or lost if I just deleted the other button
-import {Button} from "@/components/ui/button";

@@ -1,10 +1,13 @@
-﻿using FluentValidation;
+using System.ComponentModel.DataAnnotations;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TolkApi.DTO;
 
 public record PaginationDto(
+    [property: Required]
     [FromQuery(Name = "last_post_id")] long LastPostId,
+    [property: Required]
     [FromQuery(Name = "limit")] int Limit = 20
 );
 

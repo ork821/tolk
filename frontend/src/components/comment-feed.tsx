@@ -5,8 +5,8 @@ import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 import {Loader2} from "lucide-react";
 import {CommentNode} from "./comment-node";
-import {api} from "@/lib/api";
-import {mapCommentsPageToComments} from "@/lib/api/comment-mappers";
+import {client} from "@/lib/api";
+
 
 interface CommentFeedProps {
     postId: number;
@@ -27,7 +27,7 @@ export function CommentFeed({postId}: CommentFeedProps) {
     } = useInfiniteQuery({
         queryKey: ["posts", postId, "comments"],
         queryFn: async ({pageParam}) => {
-            const {data, error} = await api.GET("/v1/posts/{post}/comments", {
+            const {data, error} = await client.GET("/v1/posts/{post}/comments", {
                 params: {
                     path: {
                         post: postId,
@@ -53,7 +53,7 @@ export function CommentFeed({postId}: CommentFeedProps) {
         }
     }, [fetchNextPage, hasNextPage, inView, isFetchingNextPage]);
 
-    const comments = data?.pages.flatMap(mapCommentsPageToComments) ?? [];
+    const comments = data?.pages.flatMap(page => page.comments) ?? [];
 
     return (
         <div className="flex flex-col px-4 pb-4">

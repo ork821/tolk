@@ -1447,24 +1447,24 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         AuthProvidersDto: {
-            providers?: string[] | null;
+            providers: string[];
         };
         AuthTokenDto: {
-            accessToken?: string | null;
+            accessToken: string;
             /** Format: date-time */
-            expires?: string;
+            expires: string;
         };
         CommentEntity: {
             /** Format: int64 */
-            id?: number;
-            authorUsername?: string | null;
-            authorDisplayName?: string | null;
-            type?: components["schemas"]["ContentType"];
-            content?: string | null;
+            id: number;
+            authorUsername: string;
+            authorDisplayName: string;
+            type: components["schemas"]["ContentType"];
+            content: string;
             /** Format: int64 */
-            repliesCount?: number;
+            repliesCount: number;
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
             /** Format: date-time */
             updatedAt?: string | null;
         };
@@ -1476,126 +1476,127 @@ export interface components {
         CreateCommentBodyDto: {
             /** Format: int64 */
             parentCommentId?: number | null;
-            type?: components["schemas"]["ContentType"];
-            content?: string | null;
+            type: components["schemas"]["ContentType"];
+            content: string;
         };
         CreatePostBodyDto: {
             /** Format: int64 */
             parentPostId?: number | null;
-            title?: string | null;
-            type?: components["schemas"]["ContentType"];
-            content?: string | null;
+            title: string;
+            type: components["schemas"]["ContentType"];
+            content: string;
         };
         CreateReplyCommentBodyDto: {
-            type?: components["schemas"]["ContentType"];
-            content?: string | null;
+            type: components["schemas"]["ContentType"];
+            content: string;
         };
         CreateUpdateCommentDto: {
             /** Format: int64 */
-            id?: number;
-            contentType?: components["schemas"]["ContentType"];
-            content?: string | null;
+            id: number;
+            contentType: components["schemas"]["ContentType"];
+            content: string;
             /** Format: int64 */
             parentId?: number | null;
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
             /** Format: date-time */
             updatedAt?: string | null;
         };
         CreateUpdatePostDto: {
             /** Format: int64 */
-            id?: number;
+            id: number;
             /** Format: int64 */
             parentPostId?: number | null;
-            title?: string | null;
+            title: string;
             /** Format: int32 */
-            contentType?: number;
-            content?: string | null;
+            contentType: number;
+            content: string;
         };
         GetReactionsDto: {
-            name?: string | null;
+            name: string;
             /** Format: int64 */
-            count?: number;
+            count: number;
         };
         GetUserByUsernameDto: {
             /** Format: uuid */
-            id?: string;
-            username?: string | null;
-            displayName?: string | null;
+            id: string;
+            username: string;
+            displayName: string;
             email?: string | null;
             description?: string | null;
             /** Format: int64 */
-            karma?: number;
+            karma: number;
             /** Format: int64 */
-            followersCount?: number;
+            followersCount: number;
             /** Format: int64 */
-            followUserCount?: number;
+            followUserCount: number;
             /** Format: int64 */
-            followGroupsCount?: number;
+            followGroupsCount: number;
         };
         GetUserFollowersDto: {
-            username?: string | null;
-            displayName?: string | null;
-            isSubscribed?: boolean;
+            username: string;
+            displayName: string;
+            isSubscribed: boolean;
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
         };
         GetUserFollowingGroupsDto: {
-            alias?: string | null;
+            alias: string;
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
         };
         GetUserFollowsDto: {
-            username?: string | null;
-            displayName?: string | null;
+            username: string;
+            displayName: string;
+            isSubscribed: boolean;
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
         };
         OAuthLoginDto: {
-            token?: string | null;
+            token: string;
             redirectUri?: string | null;
         };
         OperationResultDto: {
-            result?: boolean;
+            result: boolean;
         };
         PagedCommentsDto: {
-            comments?: components["schemas"]["CommentEntity"][] | null;
+            comments: components["schemas"]["CommentEntity"][];
             nextPageToken?: string | null;
         };
         PagedPostsDto: {
-            posts?: components["schemas"]["PostDto"][] | null;
+            posts: components["schemas"]["PostDto"][];
             nextPageToken?: string | null;
         };
         PagedUserFollowersDto: {
-            followers?: components["schemas"]["GetUserFollowersDto"][] | null;
+            followers: components["schemas"]["GetUserFollowersDto"][];
             nextPageToken?: string | null;
         };
         PagedUserFollowsDto: {
-            follows?: components["schemas"]["GetUserFollowsDto"][] | null;
+            follows: components["schemas"]["GetUserFollowsDto"][];
             nextPageToken?: string | null;
         };
         PagedUserGroupFollowsDto: {
-            groups?: components["schemas"]["GetUserFollowingGroupsDto"][] | null;
+            groups: components["schemas"]["GetUserFollowingGroupsDto"][];
             nextPageToken?: string | null;
         };
         PostDto: {
             /** Format: int64 */
-            id?: number;
-            title?: string | null;
+            id: number;
+            title: string;
             /** Format: int32 */
-            contentType?: number;
-            content?: string | null;
+            contentType: number;
+            content: string;
             /** Format: int64 */
             parentPostId?: number | null;
-            authorUsername?: string | null;
-            authorDisplayName?: string | null;
-            isCommentsEnabled?: boolean;
+            authorUsername: string;
+            authorDisplayName: string;
+            isCommentsEnabled: boolean;
             /** Format: int64 */
-            commentsCount?: number;
+            commentsCount: number;
             /** Format: int64 */
-            repliesCount?: number;
+            repliesCount: number;
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
             /** Format: date-time */
             updatedAt?: string | null;
         };
@@ -1610,19 +1611,19 @@ export interface components {
             [key: string]: unknown;
         };
         ReactionTypeDto: {
-            name?: string | null;
+            name: string;
             /** Format: double */
-            weight?: number;
+            weight: number;
             icon?: string | null;
         };
         UpdateCommentBodyDto: {
-            type?: components["schemas"]["ContentType"];
-            content?: string | null;
+            type: components["schemas"]["ContentType"];
+            content: string;
         };
         UpdatePostBodyDto: {
-            title?: string | null;
-            type?: components["schemas"]["ContentType"];
-            content?: string | null;
+            title: string;
+            type: components["schemas"]["ContentType"];
+            content: string;
         };
     };
     responses: never;

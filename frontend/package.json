@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "gen-client": "npx openapi-typescript http://localhost:3000/api/swagger/v1/swagger.json -o ./src/lib/api/v1.d.ts"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
