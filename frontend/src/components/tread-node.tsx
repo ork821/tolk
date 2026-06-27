@@ -26,7 +26,7 @@ export function ThreadNode({ post, isLast = false}: ThreadNodeProps) {
 
     const handleShare = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        const postUrl = `${window.location.origin}/post/${post.id}`;
+        const postUrl = `${window.location.origin}/p/${post.id}`;
 
         if (navigator.share) {
             try {

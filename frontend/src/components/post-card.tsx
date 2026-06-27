@@ -34,7 +34,7 @@ export function PostCard({post}: { post: PostCardProps }) {
         e.stopPropagation(); // Не переходим на страницу поста при клике
 
         // Формируем абсолютную ссылку на пост
-        const postUrl = `${window.location.origin}/post/${post.id}`;
+        const postUrl = `${window.location.origin}/p/${post.id}`;
 
         // Проверяем, поддерживает ли браузер Web Share API
         if (navigator.share) {
@@ -64,7 +64,7 @@ export function PostCard({post}: { post: PostCardProps }) {
     return (
         <Card
             className="w-full border rounded-2xl sm:rounded-3xl hover:bg-accent/5 transition-all duration-300 cursor-pointer group z-20 shadow-sm hover:shadow-md border-border/50"
-            onClick={() => router.push(`/post/${post.id}`)}
+            onClick={() => router.push(`/p/${post.id}`)}
         >
             <CardHeader className="flex flex-row items-start space-x-4 p-4 pb-2">
                 {/* Аватарка */}
