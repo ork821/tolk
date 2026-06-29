@@ -4,48 +4,26 @@ services:
     environment:
       POSTGRES_DB: tolk
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev_password}
+      APP_DB_USER: ${APP_DB_USER:-backend}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-backend_dev_password}
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./backend/src/Database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./backend/src/Database/tables.sql:/docker-entrypoint-initdb.d/02-tables.sql
-      - ./backend/src/Database/functions.sql:/docker-entrypoint-initdb.d/03-functions.sql
-    restart: unless-stopped
-
-  api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    environment:
-      - ConnectionStrings__DataBase=Host=db;Port=5432;Database=tolk;Username=postgres;Password=password
-      - ConnectionStrings__Redis=redis:6379
-      - JwtSettings__AccessSecret=${JWT_ACCESS_SECRET:-your_very_long_secret_key_here_12345}
-      - TOLK_Host=https://${DOMAIN:-localhost}
-      - TOLK_AllowedOrigins__0=https://${DOMAIN:-localhost}
-    depends_on:
-      - db
-      - redis
-    restart: unless-stopped
-
-  web:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    environment:
-      - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}/api
+      - ./backend/src/Database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql
+      - ./backend/src/Database/functions.sql:/docker-entrypoint-initdb.d/02-functions.sql
+      - ./backend/src/Database/init.sh:/docker-entrypoint-initdb.d/03-init.sh:ro
     restart: unless-stopped
 
   nginx:
-    image: nginx:alpine
+    image: nginxinc/nginx-unprivileged:stable-alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:8080"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - api
-      - web
+      - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
 volumes:

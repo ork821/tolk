@@ -1,27 +1,26 @@
 "use client";
 
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
-import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
-import {Button} from "@/components/ui/button";
-import Link from "next/link";
-import {cn, formatCompactNumber} from "@/lib/utils";
 import React, {useState} from "react";
-import {PostCardProps} from "@/components/post-card";
+import Link from "next/link";
+import {Avatar, AvatarFallback} from "@/components/ui/avatar";
+import {Button} from "@/components/ui/button";
+import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
+import {cn, formatCompactNumber} from "@/lib/utils";
+import type {PostCardProps} from "@/components/post-card";
 
 interface ThreadNodeProps {
-    post: PostCardProps; // В реальности здесь будет типизация твоего поста
-    isLast?: boolean; // Если true, не рисуем линию вниз
-    isMain?: boolean; // Если true, делаем шрифт крупнее (это пост, на который мы перешли)
+    post: PostCardProps;
+    isLast?: boolean;
 }
 
-export function ThreadNode({ post, isLast = false}: ThreadNodeProps) {
+export function ThreadNode({post, isLast = false}: ThreadNodeProps) {
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(0);
 
     const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation();
         setLiked(!liked);
-        setLikeCount(prev => liked ? prev - 1 : prev + 1);
+        setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
     };
 
     const handleShare = async (e: React.MouseEvent) => {
@@ -41,7 +40,7 @@ export function ThreadNode({ post, isLast = false}: ThreadNodeProps) {
         } else {
             try {
                 await navigator.clipboard.writeText(postUrl);
-                alert("Ссылка на пост скопирована в буфер обмена!");
+                alert("Ссылка на пост скопирована в буфер обмена.");
             } catch (error) {
                 console.error("Не удалось скопировать ссылку", error);
             }
@@ -49,78 +48,106 @@ export function ThreadNode({ post, isLast = false}: ThreadNodeProps) {
     };
 
     return (
-        <div className={cn(
-            "relative flex gap-4 p-4 hover:bg-accent/5 transition-colors cursor-pointer"
-        )}>
-            {/* Левая колонка: Аватар и соединительная линия */}
-            <div className="flex flex-col items-center">
-                <Avatar className="size-10 shrink-0">
-                    <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
-                </Avatar>
+        <div className="relative flex cursor-pointer gap-4 p-4 transition-colors hover:bg-accent/5">
+            <ThreadRail post={post} showLineBelow={!isLast}/>
 
-                {/* Вертикальная линия треда */}
-                {!isLast && (
-                    <div className="w-0.5 bg-border h-full absolute top-14 bottom-0 z-0" />
-                )}
-            </div>
-
-            {/* Правая колонка: Контент */}
-            <div className="flex-1 min-w-0 pb-2">
+            <div className="min-w-0 flex-1 pb-2">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 overflow-hidden">
+                    <div className="flex min-w-0 items-center gap-1 overflow-hidden">
                         <Link
                             href={`/u/${post.authorUsername}`}
-                            className="font-bold truncate hover:underline"
+                            className="truncate font-bold hover:underline"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {post.authorDisplayName}
                         </Link>
-                        <span className="text-muted-foreground truncate text-sm">
-                            @{post.authorUsername}
-                        </span>
-                        <span className="text-muted-foreground text-sm">·</span>
-                        <span className="text-muted-foreground text-sm">{new Date(post.createdAt).toLocaleDateString()}</span>
+                        <span className="truncate text-sm text-muted-foreground">@{post.authorUsername}</span>
+                        <span className="text-sm text-muted-foreground">·</span>
+                        <span className="text-sm text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</span>
                     </div>
 
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground" onClick={(e) => e.stopPropagation()}>
-                        <MoreHorizontal className="h-4 w-4" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full text-muted-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <MoreHorizontal className="h-4 w-4"/>
                     </Button>
                 </div>
 
-                <div className={cn(
-                    "mt-1 text-foreground break-words",
-                    "text-[15px] leading-normal"
-                )}>
+                <div className="mt-1 break-words text-[15px] leading-normal text-foreground">
                     {post.content}
                 </div>
 
-                {/* Панель действий */}
-                <div className="flex justify-between max-w-md mt-3 text-muted-foreground">
-                    <ActionIcon icon={MessageCircle} count={post.commentsCount} hoverClass="hover:text-blue-500 hover:bg-blue-500/10" />
-                    <ActionIcon icon={Repeat2} count={post.repliesCount} hoverClass="hover:text-green-500 hover:bg-green-500/10" />
-                    <ActionIcon 
-                        icon={Flame} 
-                        count={likeCount} 
+                <div className="mt-3 flex max-w-md justify-between text-muted-foreground">
+                    <ActionIcon icon={MessageCircle} count={post.commentsCount} hoverClass="hover:text-blue-500 hover:bg-blue-500/10"/>
+                    <ActionIcon icon={Repeat2} count={post.repliesCount} hoverClass="hover:text-green-500 hover:bg-green-500/10"/>
+                    <ActionIcon
+                        icon={Flame}
+                        count={likeCount}
                         onClick={handleLike}
-                        hoverClass="hover:text-orange-500 hover:bg-orange-500/10" 
-                        iconClass={cn(liked && "text-orange-500 fill-current")} 
+                        hoverClass="hover:text-orange-500 hover:bg-orange-500/10"
+                        iconClass={cn(liked && "fill-current text-orange-500")}
                     />
-                    <ActionIcon icon={ExternalLink} onClick={handleShare} hoverClass="hover:text-blue-500 hover:bg-blue-500/10" />
+                    <ActionIcon icon={ExternalLink} onClick={handleShare} hoverClass="hover:text-blue-500 hover:bg-blue-500/10"/>
                 </div>
             </div>
         </div>
     );
 }
 
-// Вспомогательный компонент для кнопок лайков/репостов
-function ActionIcon({ icon: Icon, count, hoverClass, iconClass, onClick }: any) {
+export function ThreadMainPost({
+    post,
+    children,
+    showLineAbove = false,
+}: {
+    post: PostCardProps;
+    children: React.ReactNode;
+    showLineAbove?: boolean;
+}) {
     return (
-        <div 
-            className="flex items-center gap-1 group transition-colors" 
+        <div className="relative flex gap-4 p-4">
+            <ThreadRail post={post} showLineAbove={showLineAbove} showLineBelow={false}/>
+            <div className="min-w-0 flex-1">
+                {children}
+            </div>
+        </div>
+    );
+}
+
+function ThreadRail({
+    post,
+    showLineAbove = false,
+    showLineBelow = false,
+}: {
+    post: PostCardProps;
+    showLineAbove?: boolean;
+    showLineBelow?: boolean;
+}) {
+    return (
+        <div className="relative flex w-10 shrink-0 justify-center">
+            {showLineAbove && (
+                <div className="absolute left-1/2 top-[-2.25rem] h-[calc(2.25rem+20px)] w-0.5 -translate-x-1/2 bg-border"/>
+            )}
+            {showLineBelow && (
+                <div className="absolute left-1/2 top-5 bottom-[-2.25rem] w-0.5 -translate-x-1/2 bg-border"/>
+            )}
+            <Avatar className="relative z-10 size-10 shrink-0">
+                <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
+            </Avatar>
+        </div>
+    );
+}
+
+function ActionIcon({icon: Icon, count, hoverClass, iconClass, onClick}: any) {
+    return (
+        <div
+            className="group flex items-center gap-1 transition-colors"
             onClick={onClick || ((e) => e.stopPropagation())}
         >
-            <div className={cn("p-2 rounded-full transition-colors", hoverClass)}>
-                <Icon className={cn("h-4.5 w-4.5", iconClass)} />
+            <div className={cn("rounded-full p-2 transition-colors", hoverClass)}>
+                <Icon className={cn("h-4.5 w-4.5", iconClass)}/>
             </div>
             {count !== undefined && (
                 <span className={cn("text-xs group-hover:text-current", iconClass && "text-orange-500")}>

@@ -5,9 +5,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace TolkApi.DTO;
 
 public record PaginationDto(
-    [property: Required]
+    [Required]
     [FromQuery(Name = "last_post_id")] long LastPostId,
-    [property: Required]
+    [Required]
     [FromQuery(Name = "limit")] int Limit = 20
 );
 

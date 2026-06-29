@@ -23,8 +23,8 @@ public class PostsService(DatabaseContext databaseContext)
 
         if (await reader.ReadAsync())
             return new CreateUpdatePostDto(
-                reader.GetInt64(0),
-                reader.IsDBNull(1) ? null : reader.GetInt64(1),
+                reader.GetInt64(0).ToString(),
+                reader.IsDBNull(1) ? null : reader.GetInt64(1).ToString(),
                 reader.GetString(2),
                 reader.GetInt32(3),
                 reader.GetString(4)
@@ -50,8 +50,8 @@ public class PostsService(DatabaseContext databaseContext)
 
         if (await reader.ReadAsync())
             return new CreateUpdatePostDto(
-                reader.GetInt64(0),
-                reader.IsDBNull(1) ? null : reader.GetInt64(1),
+                reader.GetInt64(0).ToString(),
+                reader.IsDBNull(1) ? null : reader.GetInt64(1).ToString(),
                 reader.GetString(2),
                 reader.GetInt32(3),
                 reader.GetString(4)

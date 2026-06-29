@@ -78,16 +78,15 @@ public class AuthController(
         return Ok(new AuthTokenDto(accessToken, expires));
     }
 
-    [Authorize]
     [HasRefresh]
     [HttpPost("refresh")]
     [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult> RefreshTokens([FromUserId] Guid? claimUserId)
+    public async Task<ActionResult> RefreshTokens()
     {
         HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
-        if (claimUserId == null || refresh == null) return Unauthorized();
+        if (refresh == null) return Unauthorized();
 
         var userRefreshToken = await _authService.ValidateRefreshToken(refresh);
         if (userRefreshToken == null || userRefreshToken.IsValid != true) return Unauthorized();
@@ -104,12 +103,13 @@ public class AuthController(
 
         await _authService.RevokeRefreshToken(refresh);
 
+        var userId = userRefreshToken.UserId;
         var expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(30));
-        var accessToken = tokenService.GenerateAccessToken((Guid)claimUserId, expires);
+        var accessToken = tokenService.GenerateAccessToken(userId, expires);
         var refreshToken = tokenService.GenerateRefreshToken();
 
 
-        await _authService.SaveRefreshToken((Guid)claimUserId, refreshToken, 30, userAgent);
+        await _authService.SaveRefreshToken(userId, refreshToken, 30, userAgent);
 
         HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
         {
@@ -141,7 +141,7 @@ public class AuthController(
 
 // DTO для авторизации
 public record OAuthLoginDto(
-    [property: Required]
+    [Required]
     string Token,
     string? RedirectUri
 );

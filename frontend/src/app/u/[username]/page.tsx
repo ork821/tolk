@@ -90,7 +90,7 @@ export default function UserProfilePage({params}: {params: Promise<{ username: s
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="posts" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
+                <TabsContent value="posts" className="m-0 p-12 bg-muted/10 rounded-3xl mt-4 border border-dashed">
                     <PostFeed
                         queryKey={["posts", "user", username]}
                         fetchFn={(params) => getUserPosts(username, params)}

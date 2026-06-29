@@ -4,14 +4,14 @@ using TolkApi.Posts;
 namespace TolkApi.Comments;
 
 public record CreateUpdateCommentDto(
-    [property: Required]
-    long Id,
-    [property: Required]
+    [Required]
+    string Id,
+    [Required]
     ContentType ContentType,
-    [property: Required]
+    [Required]
     string Content,
-    long? ParentId,
-    [property: Required]
+    string? ParentId,
+    [Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt
 );

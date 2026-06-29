@@ -82,9 +82,9 @@ public class AuthService(DatabaseContext databaseContext)
         
         command.Parameters.AddWithValue("@provider", provider);
         command.Parameters.AddWithValue("@externalId", externalId);
-        command.Parameters.AddWithValue("@username", username);
-        command.Parameters.AddWithValue("@email", email);
-        command.Parameters.AddWithValue("@displayName", displayName);
+        command.Parameters.AddWithValue("@username", username == null ? DBNull.Value : username);
+        command.Parameters.AddWithValue("@email", email ==  null ? DBNull.Value : email);
+        command.Parameters.AddWithValue("@displayName", displayName == null ? DBNull.Value : displayName);
         
         await using var reader = await command.ExecuteReaderAsync();
 

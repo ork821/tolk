@@ -1,5 +1,4 @@
 CREATE EXTENSION IF NOT EXISTS "ltree";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE SCHEMA IF NOT EXISTS main;
 CREATE SCHEMA IF NOT EXISTS users;
@@ -13,8 +12,8 @@ DECLARE
     v_variant TEXT;
 BEGIN
     v_unix_ms := FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT;
-    v_rand := encode(gen_random_bytes(9), 'hex');
-    v_variant := substr('89ab', (get_byte(gen_random_bytes(1), 0) % 4) + 1, 1);
+    v_rand := substr(md5(random()::TEXT || clock_timestamp()::TEXT), 1, 18);
+    v_variant := substr('89ab', (floor(random() * 4)::INT) + 1, 1);
 
     RETURN (
         lpad(to_hex(v_unix_ms), 12, '0') ||

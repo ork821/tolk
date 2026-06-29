@@ -4,26 +4,26 @@ using Npgsql;
 namespace TolkApi.DTO;
 
 public record PostDto(
-    [property: Required]
-    long Id,
-    [property: Required]
+    [Required]
+    string Id,
+    [Required]
     string Title,
-    [property: Required]
+    [Required]
     int ContentType,
-    [property: Required]
+    [Required]
     string Content,
-    long? ParentPostId,
-    [property: Required]
+    string? ParentPostId,
+    [Required]
     string AuthorUsername,
-    [property: Required]
+    [Required]
     string AuthorDisplayName,
-    [property: Required]
+    [Required]
     bool IsCommentsEnabled,
-    [property: Required]
+    [Required]
     long CommentsCount,
-    [property: Required]
+    [Required]
     long RepliesCount,
-    [property: Required]
+    [Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt
 )
@@ -31,11 +31,11 @@ public record PostDto(
     public static PostDto FromReader(NpgsqlDataReader reader)
     {
         return new PostDto(
-            reader.GetInt64(0),
+            reader.GetInt64(0).ToString(),
             reader.GetString(1),
             reader.GetInt32(2),
             reader.GetString(3),
-            reader.IsDBNull(4) ? null : reader.GetInt64(4),
+            reader.IsDBNull(4) ? null : reader.GetInt64(4).ToString(),
             reader.GetString(5),
             reader.GetString(6),
             reader.GetBoolean(7),

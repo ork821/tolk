@@ -2,7 +2,10 @@ import createClient from "openapi-fetch";
 import type {components, paths} from "@/lib/api/v1";
 
 const accessTokenStorageKey = "tolk.accessToken";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 let accessToken: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
+const retryableRequests = new WeakMap<Request, Request>();
 
 export function getAccessToken() {
     if (accessToken) return accessToken;
@@ -29,19 +32,66 @@ export function clearAccessToken() {
 }
 
 export const client = createClient<paths>({
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api",
+    baseUrl: apiBaseUrl,
     credentials: "include",
 });
+
+async function refreshAccessToken() {
+    if (refreshPromise) return refreshPromise;
+
+    refreshPromise = (async () => {
+        const response = await fetch(`${apiBaseUrl}/v1/auth/refresh`, {
+            method: "POST",
+            credentials: "include",
+        });
+
+        if (!response.ok) {
+            clearAccessToken();
+            return null;
+        }
+
+        const authToken = (await response.json()) as AuthTokenDto;
+        setAccessToken(authToken.accessToken);
+
+        return authToken.accessToken;
+    })().finally(() => {
+        refreshPromise = null;
+    });
+
+    return refreshPromise;
+}
 
 client.use({
     onRequest({request}) {
         const token = getAccessToken();
 
-        if (token) {
+        if (token && !request.headers.has("Authorization")) {
             request.headers.set("Authorization", `Bearer ${token}`);
         }
 
+        if (!new URL(request.url).pathname.endsWith("/v1/auth/refresh")) {
+            retryableRequests.set(request, request.clone());
+        }
+
         return request;
+    },
+    async onResponse({request, response}) {
+        const retryRequest = retryableRequests.get(request);
+        retryableRequests.delete(request);
+
+        if (response.status !== 401 || !retryRequest || new URL(request.url).pathname.endsWith("/v1/auth/refresh")) {
+            return response;
+        }
+
+        const token = await refreshAccessToken();
+        if (!token) {
+            return response;
+        }
+
+        const retryHeaders = new Headers(retryRequest.headers);
+        retryHeaders.set("Authorization", `Bearer ${token}`);
+
+        return fetch(new Request(retryRequest, {headers: retryHeaders}));
     },
 });
 
@@ -78,6 +128,7 @@ export type AuthProvidersResponse = AuthProvidersDto;
 export type LoginResponse = AuthTokenDto;
 export type OAuthLoginPayload = OAuthLoginDto;
 export type CreatePostPayload = CreatePostBodyDto;
+export type CreatePostResponse = CreateUpdatePostDto;
 export type CreateCommentPayload = CreateCommentBodyDto;
 export type CreateReplyCommentPayload = CreateReplyCommentBodyDto;
 export type User = GetUserByUsernameDto;
@@ -88,6 +139,55 @@ export type CommentsPageResponse = PagedCommentsDto;
 export type FollowListUser = (GetUserFollowsDto | GetUserFollowersDto) & {
     isSubscribed?: boolean;
 };
+
+function createPostTitle(content: string) {
+    const normalized = content.trim().replace(/\s+/g, " ");
+    const title = normalized.length > 80 ? `${normalized.slice(0, 77)}...` : normalized;
+
+    return title.length >= 10 ? title : title.padEnd(10, ".");
+}
+
+export async function createPost({
+    content,
+    title,
+    parentPostId = null,
+}: {
+    content: string;
+    title?: string;
+    parentPostId?: number | null;
+}): Promise<CreateUpdatePostDto> {
+    const trimmedContent = content.trim();
+
+    if (trimmedContent.length < 10 || trimmedContent.length > 500) {
+        throw new Error("Post content length must be between 10 and 500 characters");
+    }
+
+    const body: CreatePostBodyDto = {
+        parentPostId,
+        title: title?.trim() || createPostTitle(trimmedContent),
+        type: 0,
+        content: trimmedContent,
+    };
+
+    const {data, error} = await client.POST("/v1/posts", {
+        params: {
+            path: {
+                version: "1",
+            },
+        },
+        body,
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to create post");
+    }
+
+    return data;
+}
 
 export async function getUserPosts(
     username: string,

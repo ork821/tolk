@@ -3,10 +3,10 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Auth.Providers.DTO;
 
 public record ExternalOAuthLoginDto(
-    [property: Required]
+    [Required]
     Guid UserId,
-    [property: Required]
+    [Required]
     string Username,
-    [property: Required]
+    [Required]
     bool IsNew
 );

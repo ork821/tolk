@@ -117,10 +117,10 @@ public class CommentsService(DatabaseContext databaseContext)
     private static CreateUpdateCommentDto ReadCreateUpdateComment(Npgsql.NpgsqlDataReader reader)
     {
         return new CreateUpdateCommentDto(
-            reader.GetInt64(0),
+            reader.GetInt64(0).ToString(),
             (ContentType)reader.GetInt32(1),
             reader.GetString(2),
-            reader.IsDBNull(3) ? null : reader.GetInt64(3),
+            reader.IsDBNull(3) ? null : reader.GetInt64(3).ToString(),
             reader.GetDateTime(4),
             reader.IsDBNull(5) ? null : reader.GetDateTime(5)
         );

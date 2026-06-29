@@ -9,7 +9,7 @@ import {client} from "@/lib/api";
 
 
 interface CommentFeedProps {
-    postId: number;
+    postId: string;
 }
 
 export function CommentFeed({postId}: CommentFeedProps) {

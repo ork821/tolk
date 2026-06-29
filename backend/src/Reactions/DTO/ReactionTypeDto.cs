@@ -3,9 +3,9 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Reactions.DTO;
 
 public record ReactionTypeDto(
-    [property: Required]
+    [Required]
     string Name,
-    [property: Required]
+    [Required]
     double Weight,
     string? Icon
 );

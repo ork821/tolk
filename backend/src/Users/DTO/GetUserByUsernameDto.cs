@@ -4,21 +4,21 @@ using Npgsql;
 namespace TolkApi.Users.DTO;
 
 public record GetUserByUsernameDto(
-    [property: Required]
+    [Required]
     Guid Id,
-    [property: Required]
+    [Required]
     string Username,
-    [property: Required]
+    [Required]
     string DisplayName,
     string? Email,
     string? Description,
-    [property: Required]
+    [Required]
     long Karma,
-    [property: Required]
+    [Required]
     long FollowersCount,
-    [property: Required]
+    [Required]
     long FollowUserCount,
-    [property: Required]
+    [Required]
     long FollowGroupsCount
 )
 {

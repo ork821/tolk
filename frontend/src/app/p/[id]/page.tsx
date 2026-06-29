@@ -3,18 +3,20 @@
 import React from "react";
 import {useQuery} from "@tanstack/react-query";
 import {Loader2} from "lucide-react";
-import {ThreadNode} from "@/components/tread-node";
+import {ThreadMainPost, ThreadNode} from "@/components/tread-node";
 import {BackButton} from "@/components/back-button";
 import {PostCard} from "@/components/post-card";
 import {SubmitForm} from "@/components/input-form";
 import {CommentFeed} from "@/components/comment-feed";
 import {useAuth} from "@/hooks/use-auth";
-import {client} from "@/lib/api";
+import {client, createPost} from "@/lib/api";
+import {useRouter} from "next/navigation";
 
 export default function PostThreadPage({params}: {params: Promise<{id: string}>}) {
     const {user} = useAuth();
+    let router = useRouter();
     const resolvedParams = React.use(params);
-    const postId = Number(resolvedParams.id);
+    const postId = resolvedParams.id;
 
     const {data, status} = useQuery({
         queryKey: ["posts", postId, "thread"],
@@ -38,11 +40,21 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
 
             return data;
         },
-        enabled: Number.isFinite(postId),
+        enabled: postId.length > 0,
     });
 
     const threadPosts = data ? data.slice(0, data.length - 1) : [];
     const mainPost = data ? data[data.length - 1] : undefined;
+
+
+    const handleCreatePost = async (content: string) => {
+        if (!mainPost)
+            return;
+        let post = await createPost({content, parentPostId: mainPost.id});
+        router.push(`/p/${post.id}`);
+    };
+
+
 
     return (
         <div className="flex min-h-screen flex-col pb-20">
@@ -60,20 +72,23 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                     Не удалось загрузить тред.
                 </div>
             ) : (
-                <div className="mt-2 flex flex-col sm:rounded-2xl">
-                    {threadPosts.map((post, index) => (
+                <div className="mt-6 flex flex-col sm:rounded-2xl">
+                    {threadPosts.map((post) => (
                         <ThreadNode
                             key={post.id}
                             post={post}
-                            isLast={index === threadPosts.length - 1}
+                            isLast={false}
                         />
                     ))}
 
-                    <PostCard post={mainPost} />
+                    <ThreadMainPost post={mainPost} showLineAbove={threadPosts.length > 0}>
+                        <PostCard post={mainPost} showAvatar={false} />
+                    </ThreadMainPost>
                     {user && (
                         <SubmitForm
                             placeholder="Опубликуйте ваш ответ"
                             submitLabel="Ответить"
+                            onSubmit={handleCreatePost}
                         />
                     )}
 

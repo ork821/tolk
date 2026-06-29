@@ -818,7 +818,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;
@@ -871,7 +871,7 @@ export interface paths {
                 };
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;

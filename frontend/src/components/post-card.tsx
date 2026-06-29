@@ -14,7 +14,7 @@ export type PostCardProps = Post;
 
 const defaultReaction = "like";
 
-export function PostCard({post}: { post: PostCardProps }) {
+export function PostCard({post, showAvatar = true}: { post: PostCardProps; showAvatar?: boolean }) {
     const router = useRouter();
     const [liked, setLiked] = useState(false);
     const [likeCount, setLikeCount] = useState(0);
@@ -74,20 +74,22 @@ export function PostCard({post}: { post: PostCardProps }) {
 
     return (
         <Card
-            className="w-full border rounded-2xl sm:rounded-3xl hover:bg-accent/5 transition-all duration-300 cursor-pointer group z-20 shadow-sm hover:shadow-md border-border/50"
+            className="w-full border rounded-2xl sm:rounded-3xl hover:bg-accent/5 transition-all duration-300 cursor-pointer group z-20 text-left shadow-sm hover:shadow-md border-border/50"
             onClick={() => router.push(`/p/${post.id}`)}
         >
-            <CardHeader className="flex flex-row items-start space-x-4 p-4 pb-2">
-                <Avatar className="size-10 shrink-0">
-                    <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
-                </Avatar>
+            <CardHeader className="flex flex-row items-start gap-4 p-4 pb-2">
+                {showAvatar && (
+                    <Avatar className="size-10 shrink-0">
+                        <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
+                    </Avatar>
+                )}
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1 overflow-hidden flex-1">
+                        <div className="flex flex-col items-start gap-1 overflow-hidden flex-1">
                             <Link
                                 href={`/u/${post.authorUsername}`}
-                                className="font-bold truncate hover:underline decoration-2 underline-offset-2"
+                                className="text-lg font-bold truncate hover:underline decoration-2 underline-offset-2"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 {post.authorDisplayName}
@@ -119,7 +121,7 @@ export function PostCard({post}: { post: PostCardProps }) {
                     </div>
 
                     <CardContent className="p-0 mt-1">
-                        <p className="text-[15px] leading-normal text-foreground wrap-break-word">
+                        <p className="text-left text-[15px] leading-normal text-foreground wrap-break-word">
                             {post.content}
                         </p>
                     </CardContent>

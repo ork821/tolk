@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Posts.DTO;
 
 public record CreateUpdatePostDto(
-    [property: Required]
-    long Id,
-    long? ParentPostId,
-    [property: Required]
+    [Required]
+    string Id,
+    string? ParentPostId,
+    [Required]
     string Title,
-    [property: Required]
+    [Required]
     int ContentType,
-    [property: Required]
+    [Required]
     string Content
 );

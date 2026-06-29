@@ -1,4 +1,4 @@
-﻿using Asp.Versioning;
+using Asp.Versioning;
 using System.ComponentModel.DataAnnotations;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -197,16 +197,16 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
 
 
 public record UpdateCommentBodyDto(
-    [property: Required]
+    [Required]
     ContentType Type,
-    [property: Required]
+    [Required]
     string Content
 );
 
 public record CreateReplyCommentBodyDto(
-    [property: Required]
+    [Required]
     ContentType Type,
-    [property: Required]
+    [Required]
     string Content
 );
 

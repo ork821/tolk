@@ -5,7 +5,7 @@
 This repository contains a .NET Web API targeting `net9.0`. The entry point and DI setup live in `Program.cs`. Feature code is grouped under `src/`:
 
 - `src/Auth`, `src/Users`, `src/Posts`, `src/Comments`, `src/Reactions`, `src/Groups`, `src/Me` contain controllers, services, DTOs, and feature logic.
-- `src/Database` contains PostgreSQL setup scripts: `tables.sql`, `functions.sql`, and `init.sql`.
+- `src/Database` contains PostgreSQL setup scripts: `init.sh`, `tables.sql`, and `functions.sql`.
 - `src/DTO` contains shared response DTOs.
 - `src/Utility` contains cross-cutting helpers such as claim binding, cursor encoding, and ID generation.
 

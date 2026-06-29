@@ -4,7 +4,6 @@ import {
     type AuthTokenDto,
     clearAccessToken,
     client,
-    getAccessToken,
     type OAuthLoginDto,
     setAccessToken,
     type User,
@@ -38,28 +37,25 @@ async function fetchMe() {
 export function useAuth() {
     const queryClient = useQueryClient();
     const [isMounted, setIsMounted] = useState(false);
-    const [hasAccessToken, setHasAccessToken] = useState(false);
     const [isSocialLoggingIn, setIsSocialLoggingIn] = useState<string | null>(null);
 
     useEffect(() => {
-        setHasAccessToken(!!getAccessToken());
         setIsMounted(true);
     }, []);
 
     const {data: user, isPending, isLoading, isError} = useQuery({
         queryKey: authSessionQueryKey,
         queryFn: fetchMe,
-        enabled: isMounted && hasAccessToken,
+        enabled: isMounted,
         staleTime: 1000 * 60 * 5,
         retry: false,
     });
 
-    const isAuthLoading = !isMounted || (hasAccessToken && (isPending || isLoading));
+    const isAuthLoading = !isMounted || isPending || isLoading;
 
     const login = (userData: User, token?: AuthTokenDto) => {
         if (token?.accessToken) {
             setAccessToken(token.accessToken);
-            setHasAccessToken(true);
         }
 
         queryClient.setQueryData(authSessionQueryKey, userData);
@@ -77,7 +73,6 @@ export function useAuth() {
         });
 
         clearAccessToken();
-        setHasAccessToken(false);
         queryClient.setQueryData(authSessionQueryKey, null);
         queryClient.removeQueries({queryKey: authSessionQueryKey});
     };
@@ -107,7 +102,6 @@ export function useAuth() {
             }
 
             setAccessToken(authToken.accessToken);
-            setHasAccessToken(true);
 
             const userData = await fetchMe();
             if (!userData) {
@@ -118,9 +112,8 @@ export function useAuth() {
             return userData;
         } catch (error) {
             clearAccessToken();
-            setHasAccessToken(false);
             queryClient.setQueryData(authSessionQueryKey, null);
-            console.error("РћС€РёР±РєР° РїСЂРё Р°РІС‚РѕСЂРёР·Р°С†РёРё:", error);
+            console.error("Ошибка при авторизации:", error);
             throw error;
         } finally {
             setIsSocialLoggingIn(null);

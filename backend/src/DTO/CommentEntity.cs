@@ -5,19 +5,19 @@ using TolkApi.Posts;
 namespace TolkApi.DTO;
 
 public record CommentEntity(
-    [property: Required]
-    long Id,
-    [property: Required]
+    [Required]
+    string Id,
+    [Required]
     string AuthorUsername,
-    [property: Required]
+    [Required]
     string AuthorDisplayName,
-    [property: Required]
+    [Required]
     ContentType Type,
-    [property: Required]
+    [Required]
     string Content,
-    [property: Required]
+    [Required]
     long RepliesCount,
-    [property: Required]
+    [Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt
 )
@@ -25,7 +25,7 @@ public record CommentEntity(
     public static CommentEntity FromReader(NpgsqlDataReader reader)
     {
         return new CommentEntity(
-            reader.GetInt64(0),
+            reader.GetInt64(0).ToString(),
             reader.GetString(1),
             reader.GetString(2),
             (ContentType)reader.GetInt32(3),

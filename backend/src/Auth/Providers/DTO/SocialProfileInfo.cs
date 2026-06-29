@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Auth.Providers.DTO;
 
 public record SocialProfileInfo(
-    [property: Required]
+    [Required]
     string Id,
     string? Username,
     string? Email,

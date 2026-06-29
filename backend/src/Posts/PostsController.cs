@@ -1,4 +1,4 @@
-﻿using Asp.Versioning;
+using Asp.Versioning;
 using System.ComponentModel.DataAnnotations;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -215,11 +215,11 @@ public enum ContentType
 
 public record CreatePostBodyDto(
     long? ParentPostId,
-    [property: Required]
+    [Required]
     string Title,
-    [property: Required]
+    [Required]
     ContentType Type,
-    [property: Required]
+    [Required]
     string Content
 );
 
@@ -245,11 +245,11 @@ public class CreatePostDtoValidator : AbstractValidator<CreatePostBodyDto>
 }
 
 public record UpdatePostBodyDto(
-    [property: Required]
+    [Required]
     string Title,
-    [property: Required]
+    [Required]
     ContentType Type,
-    [property: Required]
+    [Required]
     string Content
 );
 
@@ -277,9 +277,9 @@ public class UpdatePostDtoValidator : AbstractValidator<UpdatePostBodyDto>
 
 public record CreateCommentBodyDto(
     long? ParentCommentId,
-    [property: Required]
+    [Required]
     ContentType Type,
-    [property: Required]
+    [Required]
     string Content
 );
 
