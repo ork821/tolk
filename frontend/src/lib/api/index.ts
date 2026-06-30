@@ -154,7 +154,7 @@ export async function createPost({
 }: {
     content: string;
     title?: string;
-    parentPostId?: number | null;
+    parentPostId?: string | null;
 }): Promise<CreateUpdatePostDto> {
     const trimmedContent = content.trim();
 
@@ -163,20 +163,31 @@ export async function createPost({
     }
 
     const body: CreatePostBodyDto = {
-        parentPostId,
         title: title?.trim() || createPostTitle(trimmedContent),
         type: 0,
         content: trimmedContent,
     };
 
-    const {data, error} = await client.POST("/v1/posts", {
+    let requestObject = {
         params: {
             path: {
                 version: "1",
             },
         },
         body,
-    });
+    };
+
+    const {data, error} = parentPostId ?
+        await client.POST("/v1/posts/{post}", {
+            params: {
+                path: {
+                    version: "1",
+                    post: parentPostId
+                },
+            },
+            body,
+        }) :
+        await client.POST("/v1/posts", requestObject);
 
     if (error) {
         throw error;

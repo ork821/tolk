@@ -3,8 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Users.DTO;
 
 public record GetUserFollowingGroupsDto(
-    [Required]
+    [property: Required]
     string Alias,
-    [Required]
+    [property: Required]
     DateTime CreatedAt
 );

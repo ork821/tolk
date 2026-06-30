@@ -233,7 +233,7 @@ export interface paths {
                 };
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     version: string;
                 };
                 cookie?: never;
@@ -270,7 +270,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     version: string;
                 };
                 cookie?: never;
@@ -329,7 +329,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     version: string;
                 };
                 cookie?: never;
@@ -363,7 +363,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     version: string;
                 };
                 cookie?: never;
@@ -415,7 +415,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     version: string;
                 };
                 cookie?: never;
@@ -456,7 +456,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     reaction: string;
                     version: string;
                 };
@@ -490,7 +490,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    comment: number;
+                    comment: string;
                     reaction: string;
                     version: string;
                 };
@@ -694,7 +694,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;
@@ -730,7 +730,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;
@@ -768,13 +768,55 @@ export interface paths {
                 };
             };
         };
-        post?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    post: string;
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json-patch+json": components["schemas"]["CreatePostBodyDto"];
+                    "application/json": components["schemas"]["CreatePostBodyDto"];
+                    "text/json": components["schemas"]["CreatePostBodyDto"];
+                    "application/*+json": components["schemas"]["CreatePostBodyDto"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreateUpdatePostDto"];
+                        "application/json": components["schemas"]["CreateUpdatePostDto"];
+                        "text/json": components["schemas"]["CreateUpdatePostDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;
@@ -908,7 +950,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;
@@ -964,7 +1006,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     version: string;
                 };
                 cookie?: never;
@@ -1005,7 +1047,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     reaction: string;
                     version: string;
                 };
@@ -1039,7 +1081,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    post: number;
+                    post: string;
                     reaction: string;
                     version: string;
                 };
@@ -1455,8 +1497,7 @@ export interface components {
             expires: string;
         };
         CommentEntity: {
-            /** Format: int64 */
-            id: number;
+            id: string;
             authorUsername: string;
             authorDisplayName: string;
             type: components["schemas"]["ContentType"];
@@ -1474,14 +1515,11 @@ export interface components {
          */
         ContentType: 0;
         CreateCommentBodyDto: {
-            /** Format: int64 */
-            parentCommentId?: number | null;
+            parentCommentId?: string | null;
             type: components["schemas"]["ContentType"];
             content: string;
         };
         CreatePostBodyDto: {
-            /** Format: int64 */
-            parentPostId?: number | null;
             title: string;
             type: components["schemas"]["ContentType"];
             content: string;
@@ -1491,22 +1529,18 @@ export interface components {
             content: string;
         };
         CreateUpdateCommentDto: {
-            /** Format: int64 */
-            id: number;
+            id: string;
             contentType: components["schemas"]["ContentType"];
             content: string;
-            /** Format: int64 */
-            parentId?: number | null;
+            parentId?: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt?: string | null;
         };
         CreateUpdatePostDto: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            parentPostId?: number | null;
+            id: string;
+            parentPostId?: string | null;
             title: string;
             /** Format: int32 */
             contentType: number;
@@ -1516,6 +1550,7 @@ export interface components {
             name: string;
             /** Format: int64 */
             count: number;
+            isSelected: boolean;
         };
         GetUserByUsernameDto: {
             /** Format: uuid */
@@ -1580,14 +1615,12 @@ export interface components {
             nextPageToken?: string | null;
         };
         PostDto: {
-            /** Format: int64 */
-            id: number;
+            id: string;
             title: string;
             /** Format: int32 */
             contentType: number;
             content: string;
-            /** Format: int64 */
-            parentPostId?: number | null;
+            parentPostId?: string | null;
             authorUsername: string;
             authorDisplayName: string;
             isCommentsEnabled: boolean;

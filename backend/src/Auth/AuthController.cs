@@ -140,11 +140,13 @@ public class AuthController(
 }
 
 // DTO для авторизации
-public record OAuthLoginDto(
+public class OAuthLoginDto
+{
     [Required]
-    string Token,
-    string? RedirectUri
-);
+    public required string Token { get; init; }
+
+    public string? RedirectUri { get; init; }
+}
 
 public class OAuthLoginDtoValidator : AbstractValidator<OAuthLoginDto>
 {

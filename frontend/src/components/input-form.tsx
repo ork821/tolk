@@ -74,6 +74,13 @@ export function SubmitForm({
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key !== "Enter" || e.shiftKey) return;
+
+        e.preventDefault();
+        void handleSubmit();
+    };
+
     if (!user) return null;
 
     const insertEmoji = (emoji: any) => {
@@ -98,6 +105,7 @@ export function SubmitForm({
             ref={textareaRef}
             value={content}
             onChange={handleInput}
+            onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={isSubmitting}
             className={cn(

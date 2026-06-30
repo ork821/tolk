@@ -5,19 +5,19 @@ using TolkApi.Posts;
 namespace TolkApi.DTO;
 
 public record CommentEntity(
-    [Required]
+    [property: Required]
     string Id,
-    [Required]
+    [property: Required]
     string AuthorUsername,
-    [Required]
+    [property: Required]
     string AuthorDisplayName,
-    [Required]
+    [property: Required]
     ContentType Type,
-    [Required]
+    [property: Required]
     string Content,
-    [Required]
+    [property: Required]
     long RepliesCount,
-    [Required]
+    [property: Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt
 )

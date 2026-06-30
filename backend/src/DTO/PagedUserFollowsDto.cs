@@ -4,7 +4,7 @@ using TolkApi.Users.DTO;
 namespace TolkApi.DTO;
 
 public record PagedUserFollowsDto(
-    [Required]
+    [property: Required]
     GetUserFollowsDto[] Follows,
     string? NextPageToken
 );

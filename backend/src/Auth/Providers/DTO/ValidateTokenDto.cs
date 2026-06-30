@@ -3,10 +3,10 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Auth.Providers.DTO;
 
 public record ValidateTokenDto(
-    [Required]
+    [property: Required]
     Guid UserId,
-    [Required]
+    [property: Required]
     bool Revoked,
-    [Required]
+    [property: Required]
     bool IsValid
 );

@@ -4,26 +4,26 @@ using Npgsql;
 namespace TolkApi.DTO;
 
 public record PostDto(
-    [Required]
+    [property: Required]
     string Id,
-    [Required]
+    [property: Required]
     string Title,
-    [Required]
+    [property: Required]
     int ContentType,
-    [Required]
+    [property: Required]
     string Content,
     string? ParentPostId,
-    [Required]
+    [property: Required]
     string AuthorUsername,
-    [Required]
+    [property: Required]
     string AuthorDisplayName,
-    [Required]
+    [property: Required]
     bool IsCommentsEnabled,
-    [Required]
+    [property: Required]
     long CommentsCount,
-    [Required]
+    [property: Required]
     long RepliesCount,
-    [Required]
+    [property: Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt
 )

@@ -254,6 +254,8 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/api/v1/posts/image"
 });
 
+app.UsePathBase("/api");
+
 app.UseCors("CORS");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -263,7 +265,6 @@ app.UseCookiePolicy(new CookiePolicyOptions
     MinimumSameSitePolicy = SameSiteMode.Lax
 });
 
-app.UsePathBase("/api");
 app.MapControllers();
 app.MapHealthChecks("/health");
 

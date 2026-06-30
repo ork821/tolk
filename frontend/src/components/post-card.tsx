@@ -1,30 +1,51 @@
 "use client";
 
-import React, {useState} from "react";
+import React from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
 import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardFooter, CardHeader} from "@/components/ui/card";
-import {client, type Post} from "@/lib/api";
+import {client, type GetReactionsDto, type Post} from "@/lib/api";
 import {cn, formatCompactNumber} from "@/lib/utils";
 
 export type PostCardProps = Post;
 
-const defaultReaction = "like";
+const defaultReaction = "fire";
 
 export function PostCard({post, showAvatar = true}: { post: PostCardProps; showAvatar?: boolean }) {
     const router = useRouter();
-    const [liked, setLiked] = useState(false);
-    const [likeCount, setLikeCount] = useState(0);
+    const queryClient = useQueryClient();
+    const reactionsQueryKey = ["posts", post.id, "reactions"] as const;
 
-    const handleLike = async () => {
-        const nextLiked = !liked;
-        setLiked(nextLiked);
-        setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+    const {data: reactions = []} = useQuery({
+        queryKey: reactionsQueryKey,
+        queryFn: async () => {
+            const {data, error} = await client.GET("/v1/posts/{post}/reactions", {
+                params: {
+                    path: {
+                        post: post.id,
+                        version: "1",
+                    },
+                },
+            });
 
-        try {
+            if (error) {
+                throw error;
+            }
+
+            return data ?? [];
+        },
+    });
+
+    const fireReaction = reactions.find((reaction) => reaction.name === defaultReaction);
+    const isFireSelected = fireReaction?.isSelected ?? false;
+    const fireCount = fireReaction?.count ?? 0;
+
+    const reactionMutation = useMutation({
+        mutationFn: async (shouldSelect: boolean) => {
             const request = {
                 params: {
                     path: {
@@ -34,20 +55,60 @@ export function PostCard({post, showAvatar = true}: { post: PostCardProps; showA
                     },
                 },
             };
-            const {error} = nextLiked
+
+            const {error} = shouldSelect
                 ? await client.PUT("/v1/posts/{post}/reactions/{reaction}", request)
                 : await client.DELETE("/v1/posts/{post}/reactions/{reaction}", request);
 
             if (error) {
                 throw error;
             }
-        } catch (error) {
-            setLiked(!nextLiked);
-            setLikeCount((prev) => (nextLiked ? prev - 1 : prev + 1));
-            console.error("Не удалось изменить реакцию", error);
-        }
-    };
+        },
+        onMutate: async (shouldSelect) => {
+            await queryClient.cancelQueries({queryKey: reactionsQueryKey});
 
+            const previousReactions = queryClient.getQueryData<GetReactionsDto[]>(reactionsQueryKey);
+
+            queryClient.setQueryData<GetReactionsDto[]>(reactionsQueryKey, (current = []) => {
+                const existing = current.find((reaction) => reaction.name === defaultReaction);
+                const delta = shouldSelect ? 1 : -1;
+
+                if (!existing) {
+                    return [
+                        ...current,
+                        {
+                            name: defaultReaction,
+                            count: shouldSelect ? 1 : 0,
+                            isSelected: shouldSelect,
+                        },
+                    ];
+                }
+
+                return current.map((reaction) =>
+                    reaction.name === defaultReaction
+                        ? {
+                            ...reaction,
+                            count: Math.max(0, reaction.count + delta),
+                            isSelected: shouldSelect,
+                        }
+                        : reaction
+                );
+            });
+
+            return {previousReactions};
+        },
+        onError: (error, _shouldSelect, context) => {
+            queryClient.setQueryData(reactionsQueryKey, context?.previousReactions);
+            console.error("Failed to change post reaction", error);
+        },
+        onSettled: () => {
+            void queryClient.invalidateQueries({queryKey: reactionsQueryKey});
+        },
+    });
+
+    const handleLike = () => {
+        reactionMutation.mutate(!isFireSelected);
+    };
     const handleShare = async (e: React.MouseEvent) => {
         e.stopPropagation();
         const postUrl = `${window.location.origin}/p/${post.id}`;
@@ -126,7 +187,7 @@ export function PostCard({post, showAvatar = true}: { post: PostCardProps; showA
                         </p>
                     </CardContent>
 
-                    <CardFooter className="p-0 mt-3 flex justify-between max-w-md text-muted-foreground">
+                    <CardFooter className="p-0 mt-3 flex justify-start gap-10 max-w-md text-muted-foreground">
                         <div className="flex items-center gap-1 group/icon">
                             <div className="p-2 rounded-full group-hover/icon:bg-blue-500/10 group-hover/icon:text-blue-500 transition-colors">
                                 <MessageCircle className="size-5" />
@@ -144,20 +205,20 @@ export function PostCard({post, showAvatar = true}: { post: PostCardProps; showA
                         <div
                             className={cn(
                                 "flex items-center gap-1 group/icon transition-colors",
-                                liked && "text-orange-500"
+                                isFireSelected && "text-orange-500"
                             )}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                void handleLike();
+                                handleLike();
                             }}
                         >
                             <div className={cn(
                                 "p-2 rounded-full group-hover/icon:bg-orange-500/10 group-hover/icon:text-orange-500 transition-colors",
-                                liked && "text-orange-500"
+                                isFireSelected && "text-orange-500"
                             )}>
-                                <Flame className={cn("size-5", liked && "text-orange-500 fill-current")} />
+                                <Flame className={cn("size-5", isFireSelected && "text-orange-500 fill-current")} />
                             </div>
-                            <span className="text-s group-hover/icon:text-orange-500">{formatCompactNumber(likeCount)}</span>
+                            <span className="text-s group-hover/icon:text-orange-500">{formatCompactNumber(fireCount)}</span>
                         </div>
 
                         <div className="flex items-center group/icon" onClick={handleShare}>

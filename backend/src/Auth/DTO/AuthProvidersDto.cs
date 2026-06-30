@@ -3,6 +3,6 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Auth.DTO;
 
 public record AuthProvidersDto(
-    [Required]
+    [property: Required]
     string[] Providers
 );

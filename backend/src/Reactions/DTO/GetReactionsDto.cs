@@ -3,8 +3,10 @@ using System.ComponentModel.DataAnnotations;
 namespace TolkApi.Reactions.DTO;
 
 public record GetReactionsDto(
-    [Required]
+    [property: Required]
     string Name,
-    [Required]
-    long Count
+    [property: Required]
+    long Count,
+    [property: Required]
+    bool IsSelected
 );

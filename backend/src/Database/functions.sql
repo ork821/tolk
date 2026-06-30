@@ -1212,20 +1212,29 @@ END;
 $$ language plpgsql;
 
 
-CREATE OR REPLACE FUNCTION main.get_post_reactions(p_post_id BIGINT)
+DROP FUNCTION IF EXISTS main.get_post_reactions(BIGINT);
+
+CREATE OR REPLACE FUNCTION main.get_post_reactions(p_post_id BIGINT, p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
             (
                 po_reaction_name TEXT,
-                po_count         BIGINT
+                po_count         BIGINT,
+                po_is_selected   BOOLEAN
             )
 AS
 $$
 BEGIN
     RETURN QUERY SELECT rt.name,
-                        COALESCE(prs.count, 0)
+                        COALESCE(prs.count, 0),
+                        pr.user_id IS NOT NULL
                  FROM main.reaction_types rt
                           LEFT JOIN main.post_reaction_stats prs
                                     ON rt.id = prs.reaction_id AND prs.post_id = p_post_id
+                          LEFT JOIN main.post_reactions pr
+                                    ON p_user_id IS NOT NULL
+                                        AND rt.id = pr.reaction_id
+                                        AND pr.post_id = p_post_id
+                                        AND pr.user_id = p_user_id
                  WHERE rt.is_active IS TRUE
                    AND rt.deleted_at IS NULL;
 END;

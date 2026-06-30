@@ -80,16 +80,16 @@ export function ThreadNode({post, isLast = false}: ThreadNodeProps) {
                     {post.content}
                 </div>
 
-                <div className="mt-3 flex max-w-md justify-between text-muted-foreground">
+                <div className="mt-3 flex max-w-md justify-start gap-10 text-muted-foreground">
                     <ActionIcon icon={MessageCircle} count={post.commentsCount} hoverClass="hover:text-blue-500 hover:bg-blue-500/10"/>
                     <ActionIcon icon={Repeat2} count={post.repliesCount} hoverClass="hover:text-green-500 hover:bg-green-500/10"/>
-                    <ActionIcon
-                        icon={Flame}
-                        count={likeCount}
-                        onClick={handleLike}
-                        hoverClass="hover:text-orange-500 hover:bg-orange-500/10"
-                        iconClass={cn(liked && "fill-current text-orange-500")}
-                    />
+                    {/*<ActionIcon*/}
+                    {/*    icon={Flame}*/}
+                    {/*    count={likeCount}*/}
+                    {/*    onClick={handleLike}*/}
+                    {/*    hoverClass="hover:text-orange-500 hover:bg-orange-500/10"*/}
+                    {/*    iconClass={cn(liked && "fill-current text-orange-500")}*/}
+                    {/*/>*/}
                     <ActionIcon icon={ExternalLink} onClick={handleShare} hoverClass="hover:text-blue-500 hover:bg-blue-500/10"/>
                 </div>
             </div>

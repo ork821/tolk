@@ -1,5 +1,6 @@
 ﻿using TolkApi.Database;
 using TolkApi.Reactions.DTO;
+using NpgsqlTypes;
 
 namespace TolkApi.Reactions;
 
@@ -112,23 +113,24 @@ public class ReactionService(DatabaseContext databaseContext)
 
         while (await reader.ReadAsync())
         {
-            reactions.Add(new GetReactionsDto(reader.GetString(0),  reader.GetInt64(1)));
+            reactions.Add(new GetReactionsDto(reader.GetString(0), reader.GetInt64(1), false));
         }
         return reactions.ToArray();
     }
     
-    public async Task<GetReactionsDto[]> GetPostReactions(long postId)
+    public async Task<GetReactionsDto[]> GetPostReactions(long postId, Guid? userId = null)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM main.get_post_reactions(@postId)");
+            .CreateCommand(@"SELECT * FROM main.get_post_reactions(@postId, @userId)");
         command.Parameters.AddWithValue("@postId", postId);
+        command.Parameters.Add("@userId", NpgsqlDbType.Uuid).Value = userId.HasValue ? userId.Value : DBNull.Value;
 
         await using var reader = await command.ExecuteReaderAsync();
         var reactions = new List<GetReactionsDto>();
 
         while (await reader.ReadAsync())
         {
-            reactions.Add(new GetReactionsDto(reader.GetString(0),  reader.GetInt64(1)));
+            reactions.Add(new GetReactionsDto(reader.GetString(0), reader.GetInt64(1), reader.GetBoolean(2)));
         }
         return reactions.ToArray();
     }

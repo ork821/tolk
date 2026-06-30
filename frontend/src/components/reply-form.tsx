@@ -49,6 +49,13 @@ export function ReplyForm({
         setText(""); // Очистка после отправки
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key !== "Enter" || e.shiftKey) return;
+
+        e.preventDefault();
+        handleSubmit();
+    };
+
     // @ts-ignore
     return (
         <div className={cn(
@@ -67,6 +74,7 @@ export function ReplyForm({
                         ref={textareaRef}
                         value={text}
                         onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         placeholder={placeholder}
                         className={cn(
                             "w-full bg-transparent resize-none outline-none leading-relaxed placeholder:text-muted-foreground py-1",

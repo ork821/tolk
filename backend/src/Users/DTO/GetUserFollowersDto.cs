@@ -4,13 +4,13 @@ using Npgsql;
 namespace TolkApi.Users.DTO;
 
 public record GetUserFollowersDto(
-    [Required]
+    [property: Required]
     string Username,
-    [Required]
+    [property: Required]
     string DisplayName,
-    [Required]
+    [property: Required]
     bool IsSubscribed,
-    [Required]
+    [property: Required]
     DateTime CreatedAt
 )
 {

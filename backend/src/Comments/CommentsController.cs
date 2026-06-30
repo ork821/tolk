@@ -19,18 +19,20 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
 {
     private const int RepliesPageSize = 10;
 
-    [HttpGet("{comment:long}/replies")]
+    [HttpGet("{comment}/replies")]
     [ProducesResponseType(typeof(PagedCommentsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetReplies(
-            [FromRoute] long comment, 
+            [FromRoute] string comment, 
             [FromQuery(Name = "next_page_token")] string? nextPageToken
         )
     {
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
         CommentEntity[] comments = [];
         if (nextPageToken == null)
         {
-            comments = await commentsService.GetCommentReplies(comment, RepliesPageSize + 1, null, null);
+            comments = await commentsService.GetCommentReplies(commentId, RepliesPageSize + 1, null, null);
         }
         else
         {
@@ -39,7 +41,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
             {
                 return BadRequest("Invalid next page token");
             }
-            comments = await commentsService.GetCommentReplies(comment, RepliesPageSize + 1, parseResult.lastCreatedAt, parseResult.lastId);
+            comments = await commentsService.GetCommentReplies(commentId, RepliesPageSize + 1, parseResult.lastCreatedAt, parseResult.lastId);
         }
         
         var page = comments.Take(RepliesPageSize).ToArray();
@@ -51,15 +53,17 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     }
 
     [Authorize]
-    [HttpPost("{comment:long}/replies")]
+    [HttpPost("{comment}/replies")]
     [ProducesResponseType(typeof(CreateUpdateCommentDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateReply(
-        [FromRoute] long comment,
+        [FromRoute] string comment,
         [FromBody] CreateReplyCommentBodyDto body,
         [FromUserId] Guid userId
     )
     {
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
         var validator = new CreateReplyCommentDtoValidator();
         var validateResult = await validator.ValidateAsync(body);
         if (!validateResult.IsValid)
@@ -70,7 +74,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         var id = idGenerator.CreateId();
         var createResult = await commentsService.CreateReplyComment(
             id,
-            comment,
+            commentId,
             userId,
             body.Type,
             body.Content);
@@ -88,11 +92,13 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     [ProducesResponseType(typeof(CreateUpdateCommentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateComment(
-        [FromRoute] long comment,
+        [FromRoute] string comment,
         [FromBody] UpdateCommentBodyDto body,
         [FromUserId] Guid userId
     )
     {
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
         var validator = new UpdateCommentDtoValidator();
         var validateResult = await validator.ValidateAsync(body);
         if (!validateResult.IsValid)
@@ -101,7 +107,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         }
         
         var updateResult = await commentsService.UpdateComment(
-            comment,
+            commentId,
             userId,
             body.Type,
             body.Content);
@@ -119,12 +125,14 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteComment(
-        [FromRoute] long comment,
+        [FromRoute] string comment,
         [FromUserId] Guid userId
     )
     {
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
         var updateResult = await commentsService.DeleteComment(
-            comment,
+            commentId,
             userId
             );
         
@@ -136,27 +144,31 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         return NoContent();
     }
 
-    [HttpGet("{comment:long}/reactions")]
+    [HttpGet("{comment}/reactions")]
     [ProducesResponseType(typeof(GetReactionsDto[]), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetReactions([FromRoute] long comment)
+    public async Task<IActionResult> GetReactions([FromRoute] string comment)
     {
-        var reactions = await reactionService.GetCommentReactions(comment);
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
+        var reactions = await reactionService.GetCommentReactions(commentId);
         
         return Ok(reactions);
     }
     
     [Authorize]
-    [HttpPut("{comment:long}/reactions/{reaction}")]
+    [HttpPut("{comment}/reactions/{reaction}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddCommentReaction(
-        [FromRoute] long comment,
+        [FromRoute] string comment,
         [FromRoute] string reaction,
         [FromUserId] Guid userId
     )
     {
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
         var result = await reactionService.AddCommentReaction(
-            comment,
+            commentId,
             userId,
             reaction
         );
@@ -170,17 +182,19 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     }
     
     [Authorize]
-    [HttpDelete("{comment:long}/reactions/{reaction}")]
+    [HttpDelete("{comment}/reactions/{reaction}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteCommentReaction(
-        [FromRoute] long comment,
+        [FromRoute] string comment,
         [FromRoute] string reaction,
         [FromUserId] Guid userId
     )
     {
+        if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+
         var result = await reactionService.DeleteCommentReaction(
-            comment,
+            commentId,
             userId,
             reaction
         );
@@ -196,19 +210,23 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
 
 
 
-public record UpdateCommentBodyDto(
+public class UpdateCommentBodyDto
+{
     [Required]
-    ContentType Type,
-    [Required]
-    string Content
-);
+    public required ContentType Type { get; init; }
 
-public record CreateReplyCommentBodyDto(
     [Required]
-    ContentType Type,
+    public required string Content { get; init; }
+}
+
+public class CreateReplyCommentBodyDto
+{
     [Required]
-    string Content
-);
+    public required ContentType Type { get; init; }
+
+    [Required]
+    public required string Content { get; init; }
+}
 
 public class UpdateCommentDtoValidator : AbstractValidator<UpdateCommentBodyDto>
 {
