@@ -106,6 +106,8 @@ export type CreatePostBodyDto = ApiSchemas["CreatePostBodyDto"];
 export type CreateReplyCommentBodyDto = ApiSchemas["CreateReplyCommentBodyDto"];
 export type CreateUpdateCommentDto = ApiSchemas["CreateUpdateCommentDto"];
 export type CreateUpdatePostDto = ApiSchemas["CreateUpdatePostDto"];
+export type GetPostReactionsBatchDto = ApiSchemas["GetPostReactionsBatchDto"];
+export type GetPostReactionsBatchRequestDto = ApiSchemas["GetPostReactionsBatchRequestDto"];
 export type GetReactionsDto = ApiSchemas["GetReactionsDto"];
 export type GetUserByUsernameDto = ApiSchemas["GetUserByUsernameDto"];
 export type GetUserFollowersDto = ApiSchemas["GetUserFollowersDto"];
@@ -136,6 +138,7 @@ export type Post = PostDto;
 export type Comment = CommentEntity;
 export type PostsPageResponse = PagedPostsDto;
 export type CommentsPageResponse = PagedCommentsDto;
+export type PostReactionsByPostId = Record<string, GetReactionsDto[]>;
 export type FollowListUser = (GetUserFollowsDto | GetUserFollowersDto) & {
     isSubscribed?: boolean;
 };
@@ -223,6 +226,30 @@ export async function getUserPosts(
     }
 
     return data;
+}
+
+export async function getPostReactionsBatch(postIds: string[]): Promise<PostReactionsByPostId> {
+    const uniquePostIds = Array.from(new Set(postIds)).filter(Boolean);
+    if (uniquePostIds.length === 0) {
+        return {};
+    }
+
+    const {data, error} = await client.POST("/v1/posts/reactions/batch", {
+        params: {
+            path: {
+                version: "1",
+            },
+        },
+        body: {
+            postIds: uniquePostIds,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    return Object.fromEntries((data ?? []).map((item) => [item.postId, item.reactions]));
 }
 
 export async function getUserFollows(

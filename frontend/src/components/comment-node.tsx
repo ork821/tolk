@@ -2,13 +2,13 @@
 
 import {useState} from "react";
 import {useInfiniteQuery} from "@tanstack/react-query";
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Flame, Loader2, MessageCircle} from "lucide-react";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import {Button} from "@/components/ui/button";
 import {SubmitForm} from "@/components/input-form";
 import {client, type Comment} from "@/lib/api";
 import {useAuth} from "@/hooks/use-auth";
+import {UserAvatar} from "@/components/user-avatar";
 
 export function CommentNode({comment}: {comment: Comment}) {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -57,9 +57,7 @@ export function CommentNode({comment}: {comment: Comment}) {
         <div className="relative flex flex-col pt-3">
             <div className="flex gap-3">
                 <div className="flex w-9 shrink-0 flex-col items-center">
-                    <Avatar className="h-9 w-9 border border-background">
-                        <AvatarFallback>{comment.authorDisplayName[0]}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar username={comment.author.username} avatarUrl={comment.author.avatarUrl} className="h-9 w-9 border border-background" />
 
                     {isExpanded && hasReplies && (
                         <div
@@ -75,7 +73,7 @@ export function CommentNode({comment}: {comment: Comment}) {
                 <div className="min-w-0 flex-1 pb-2">
                     <div className="flex items-center gap-1 overflow-hidden">
                         <span className="cursor-pointer truncate text-sm font-bold hover:underline">
-                            {comment.authorDisplayName}
+                            {comment.author.displayName}
                         </span>
                         <span className="text-xs text-muted-foreground">· {comment.createdAt}</span>
                     </div>
@@ -118,7 +116,7 @@ export function CommentNode({comment}: {comment: Comment}) {
                             <SubmitForm
                                 autoFocus
                                 onCancel={() => setIsReplying(false)}
-                                placeholder={`Ответить ${comment.authorUsername}...`}
+                                placeholder={`Ответить ${comment.author.username}...`}
                                 compact
                             />
                         </div>

@@ -75,16 +75,17 @@ public class AuthService(DatabaseContext databaseContext)
 
     public async Task<ExternalOAuthLoginDto?> LoginOAuth(string provider,
         string externalId, string? username,
-        string? email, string? displayName)
+        string? email, string? displayName, string? avatarUrl)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand("SELECT * FROM users.login_oauth(@provider, @externalId, @username, @email, @displayName)");
+            .CreateCommand("SELECT * FROM users.login_oauth(@provider, @externalId, @username, @email, @displayName, @avatarUrl)");
         
         command.Parameters.AddWithValue("@provider", provider);
         command.Parameters.AddWithValue("@externalId", externalId);
         command.Parameters.AddWithValue("@username", username == null ? DBNull.Value : username);
         command.Parameters.AddWithValue("@email", email ==  null ? DBNull.Value : email);
         command.Parameters.AddWithValue("@displayName", displayName == null ? DBNull.Value : displayName);
+        command.Parameters.AddWithValue("@avatarUrl", avatarUrl == null ? DBNull.Value : avatarUrl);
         
         await using var reader = await command.ExecuteReaderAsync();
 

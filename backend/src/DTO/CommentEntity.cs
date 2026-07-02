@@ -8,9 +8,7 @@ public record CommentEntity(
     [property: Required]
     string Id,
     [property: Required]
-    string AuthorUsername,
-    [property: Required]
-    string AuthorDisplayName,
+    AuthorDto Author,
     [property: Required]
     ContentType Type,
     [property: Required]
@@ -26,13 +24,16 @@ public record CommentEntity(
     {
         return new CommentEntity(
             reader.GetInt64(0).ToString(),
-            reader.GetString(1),
-            reader.GetString(2),
-            (ContentType)reader.GetInt32(3),
-            reader.GetString(4),
-            reader.GetInt32(5),
-            reader.GetDateTime(6),
-            reader.IsDBNull(7) ? null : reader.GetDateTime(7)
+            new AuthorDto(
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3)
+            ),
+            (ContentType)reader.GetInt32(4),
+            reader.GetString(5),
+            reader.GetInt32(6),
+            reader.GetDateTime(7),
+            reader.IsDBNull(8) ? null : reader.GetDateTime(8)
         );
     }
 }

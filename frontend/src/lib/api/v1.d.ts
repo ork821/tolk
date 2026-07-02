@@ -994,6 +994,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/posts/reactions/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json-patch+json": components["schemas"]["GetPostReactionsBatchRequestDto"];
+                    "application/json": components["schemas"]["GetPostReactionsBatchRequestDto"];
+                    "text/json": components["schemas"]["GetPostReactionsBatchRequestDto"];
+                    "application/*+json": components["schemas"]["GetPostReactionsBatchRequestDto"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["GetPostReactionsBatchDto"][];
+                        "application/json": components["schemas"]["GetPostReactionsBatchDto"][];
+                        "text/json": components["schemas"]["GetPostReactionsBatchDto"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/posts/{post}/reactions": {
         parameters: {
             query?: never;
@@ -1496,10 +1553,14 @@ export interface components {
             /** Format: date-time */
             expires: string;
         };
+        AuthorDto: {
+            username: string;
+            displayName: string;
+            avatarUrl?: string | null;
+        };
         CommentEntity: {
             id: string;
-            authorUsername: string;
-            authorDisplayName: string;
+            author: components["schemas"]["AuthorDto"];
             type: components["schemas"]["ContentType"];
             content: string;
             /** Format: int64 */
@@ -1546,6 +1607,13 @@ export interface components {
             contentType: number;
             content: string;
         };
+        GetPostReactionsBatchDto: {
+            postId: string;
+            reactions: components["schemas"]["GetReactionsDto"][];
+        };
+        GetPostReactionsBatchRequestDto: {
+            postIds: string[];
+        };
         GetReactionsDto: {
             name: string;
             /** Format: int64 */
@@ -1559,6 +1627,7 @@ export interface components {
             displayName: string;
             email?: string | null;
             description?: string | null;
+            avatarUrl?: string | null;
             /** Format: int64 */
             karma: number;
             /** Format: int64 */
@@ -1571,6 +1640,7 @@ export interface components {
         GetUserFollowersDto: {
             username: string;
             displayName: string;
+            avatarUrl?: string | null;
             isSubscribed: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -1583,6 +1653,7 @@ export interface components {
         GetUserFollowsDto: {
             username: string;
             displayName: string;
+            avatarUrl?: string | null;
             isSubscribed: boolean;
             /** Format: date-time */
             createdAt: string;
@@ -1621,8 +1692,7 @@ export interface components {
             contentType: number;
             content: string;
             parentPostId?: string | null;
-            authorUsername: string;
-            authorDisplayName: string;
+            author: components["schemas"]["AuthorDto"];
             isCommentsEnabled: boolean;
             /** Format: int64 */
             commentsCount: number;

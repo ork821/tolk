@@ -8,6 +8,7 @@ public record GetUserFollowersDto(
     string Username,
     [property: Required]
     string DisplayName,
+    string? AvatarUrl,
     [property: Required]
     bool IsSubscribed,
     [property: Required]
@@ -19,8 +20,9 @@ public record GetUserFollowersDto(
         return new GetUserFollowersDto(
             reader.GetString(0),
             reader.GetString(1),
-            reader.GetBoolean(2),
-            reader.GetDateTime(3)
+            reader.IsDBNull(2) ? null : reader.GetString(2),
+            reader.GetBoolean(3),
+            reader.GetDateTime(4)
         );
     }
 }

@@ -9,7 +9,7 @@ public class VkExternalUserInfoProvider(HttpClient httpClient): IAbstractExterna
     public async Task<SocialProfileInfo?> GetUserInfo(string token)
     {
         // Формируем URL. Просим VK вернуть аватарку (photo_200)
-            var url = "method/users.get?v=5.199&fields=screen_name";
+            var url = "method/users.get?v=5.199&fields=screen_name,photo_200";
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             
             // В современных версиях VK API токен можно передавать по стандарту в заголовке Bearer
@@ -53,21 +53,21 @@ public class VkExternalUserInfoProvider(HttpClient httpClient): IAbstractExterna
                 var fullName = $"{firstName} {lastName}".Trim();
                 var username = user.GetProperty("screen_name").GetString();
 
-                // string? avatarUrl = null;
-                // if (user.TryGetProperty("photo_200", out var photoProp) && photoProp.ValueKind != JsonValueKind.Null)
-                // {
-                //     avatarUrl = photoProp.GetString();
-                //     
-                //     // ВК иногда отдает заглушку вместо реального фото, отфильтруем её (опционально)
-                //     if (avatarUrl != null && avatarUrl.Contains("camera_200.png"))
-                //     {
-                //         avatarUrl = null;
-                //     }
-                // }
+                string? avatarUrl = null;
+                if (user.TryGetProperty("photo_200", out var photoProp) && photoProp.ValueKind != JsonValueKind.Null)
+                {
+                    avatarUrl = photoProp.GetString();
+                    
+                    // ВК иногда отдает заглушку вместо реального фото, отфильтруем её (опционально)
+                    if (avatarUrl != null && avatarUrl.Contains("camera_200.png"))
+                    {
+                        avatarUrl = null;
+                    }
+                }
 
                 // Email мы отсюда не достанем, передаем null. 
                 // Если он нужен, его придется принимать отдельным параметром от фронтенда вместе с токеном.
-                return new SocialProfileInfo(id, username, null, fullName);
+                return new SocialProfileInfo(id, username, null, fullName, avatarUrl);
             }
             catch (Exception ex)
             {

@@ -134,4 +134,44 @@ public class ReactionService(DatabaseContext databaseContext)
         }
         return reactions.ToArray();
     }
+
+    public async Task<GetPostReactionsBatchDto[]> GetPostReactions(long[] postIds, Guid? userId = null)
+    {
+        if (postIds.Length == 0)
+        {
+            return [];
+        }
+
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_posts_reactions(@postIds, @userId)");
+        command.Parameters.Add("postIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = postIds;
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId.HasValue ? userId.Value : DBNull.Value;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var reactionsByPostId = new Dictionary<long, List<GetReactionsDto>>();
+
+        foreach (var postId in postIds)
+        {
+            reactionsByPostId.TryAdd(postId, []);
+        }
+
+        while (await reader.ReadAsync())
+        {
+            var postId = reader.GetInt64(0);
+            if (!reactionsByPostId.TryGetValue(postId, out var reactions))
+            {
+                reactions = [];
+                reactionsByPostId[postId] = reactions;
+            }
+
+            reactions.Add(new GetReactionsDto(
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetBoolean(3)));
+        }
+
+        return postIds
+            .Select(postId => new GetPostReactionsBatchDto(postId.ToString(), reactionsByPostId[postId].ToArray()))
+            .ToArray();
+    }
 }

@@ -38,6 +38,7 @@ export default function MyProfilePage() {
     const profileData: ProfileUser = {
         displayName: user.displayName,
         username,
+        avatarUrl: user.avatarUrl,
         description: user.description ?? "",
         stats: {
             following: user.followUserCount,

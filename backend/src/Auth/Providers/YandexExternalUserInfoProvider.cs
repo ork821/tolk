@@ -50,7 +50,7 @@ public class YandexExternalUserInfoProvider(HttpClient httpClient) : IAbstractEx
                 return null;
             }
 
-            return new SocialProfileInfo(id, name, email, null);
+            return new SocialProfileInfo(id, name, email, null, null);
         }
         catch (Exception ex)
         {

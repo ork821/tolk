@@ -1,26 +1,124 @@
 "use client";
 
-import React, {useState} from "react";
+import React from "react";
 import Link from "next/link";
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button} from "@/components/ui/button";
 import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import type {PostCardProps} from "@/components/post-card";
+import {client, type GetReactionsDto} from "@/lib/api";
+import {UserAvatar} from "@/components/user-avatar";
 
 interface ThreadNodeProps {
     post: PostCardProps;
     isLast?: boolean;
+    initialReactions?: GetReactionsDto[];
 }
 
-export function ThreadNode({post, isLast = false}: ThreadNodeProps) {
-    const [liked, setLiked] = useState(false);
-    const [likeCount, setLikeCount] = useState(0);
+const defaultReaction = "fire";
+
+export function ThreadNode({post, isLast = false, initialReactions}: ThreadNodeProps) {
+    const queryClient = useQueryClient();
+    const reactionsQueryKey = React.useMemo(() => ["posts", post.id, "reactions"] as const, [post.id]);
+
+    React.useEffect(() => {
+        if (initialReactions === undefined) return;
+
+        queryClient.setQueryData<GetReactionsDto[]>(reactionsQueryKey, initialReactions);
+    }, [initialReactions, queryClient, reactionsQueryKey]);
+
+    const {data: reactions = []} = useQuery({
+        queryKey: reactionsQueryKey,
+        queryFn: async () => {
+            const {data, error} = await client.GET("/v1/posts/{post}/reactions", {
+                params: {
+                    path: {
+                        post: post.id,
+                        version: "1",
+                    },
+                },
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            return data ?? [];
+        },
+        enabled: initialReactions === undefined,
+        initialData: initialReactions,
+    });
+
+    const fireReaction = reactions.find((reaction) => reaction.name === defaultReaction);
+    const isFireSelected = fireReaction?.isSelected ?? false;
+    const fireCount = fireReaction?.count ?? 0;
+
+    const reactionMutation = useMutation({
+        mutationFn: async (shouldSelect: boolean) => {
+            const request = {
+                params: {
+                    path: {
+                        post: post.id,
+                        reaction: defaultReaction,
+                        version: "1",
+                    },
+                },
+            };
+
+            const {error} = shouldSelect
+                ? await client.PUT("/v1/posts/{post}/reactions/{reaction}", request)
+                : await client.DELETE("/v1/posts/{post}/reactions/{reaction}", request);
+
+            if (error) {
+                throw error;
+            }
+        },
+        onMutate: async (shouldSelect) => {
+            await queryClient.cancelQueries({queryKey: reactionsQueryKey});
+
+            const previousReactions = queryClient.getQueryData<GetReactionsDto[]>(reactionsQueryKey);
+
+            queryClient.setQueryData<GetReactionsDto[]>(reactionsQueryKey, (current = []) => {
+                const existing = current.find((reaction) => reaction.name === defaultReaction);
+                const delta = shouldSelect ? 1 : -1;
+
+                if (!existing) {
+                    return [
+                        ...current,
+                        {
+                            name: defaultReaction,
+                            count: shouldSelect ? 1 : 0,
+                            isSelected: shouldSelect,
+                        },
+                    ];
+                }
+
+                return current.map((reaction) =>
+                    reaction.name === defaultReaction
+                        ? {
+                            ...reaction,
+                            count: Math.max(0, reaction.count + delta),
+                            isSelected: shouldSelect,
+                        }
+                        : reaction
+                );
+            });
+
+            return {previousReactions};
+        },
+        onError: (error, _shouldSelect, context) => {
+            queryClient.setQueryData(reactionsQueryKey, context?.previousReactions);
+            console.error("Failed to change post reaction", error);
+        },
+        onSettled: () => {
+            void queryClient.invalidateQueries({queryKey: reactionsQueryKey});
+        },
+    });
 
     const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setLiked(!liked);
-        setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+        reactionMutation.mutate(!isFireSelected);
     };
 
     const handleShare = async (e: React.MouseEvent) => {
@@ -30,8 +128,8 @@ export function ThreadNode({post, isLast = false}: ThreadNodeProps) {
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `Пост от ${post.authorDisplayName}`,
-                    text: `Смотри, что пишет ${post.authorDisplayName}: ${post.content.substring(0, 50)}...`,
+                    title: `Пост от ${post.author.displayName}`,
+                    text: `Смотри, что пишет ${post.author.displayName}: ${post.content.substring(0, 50)}...`,
                     url: postUrl,
                 });
             } catch (error) {
@@ -55,13 +153,13 @@ export function ThreadNode({post, isLast = false}: ThreadNodeProps) {
                 <div className="flex items-center justify-between">
                     <div className="flex min-w-0 items-center gap-1 overflow-hidden">
                         <Link
-                            href={`/u/${post.authorUsername}`}
+                            href={`/u/${post.author.username}`}
                             className="truncate font-bold hover:underline"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {post.authorDisplayName}
+                            {post.author.displayName}
                         </Link>
-                        <span className="truncate text-sm text-muted-foreground">@{post.authorUsername}</span>
+                        <span className="truncate text-sm text-muted-foreground">@{post.author.username}</span>
                         <span className="text-sm text-muted-foreground">·</span>
                         <span className="text-sm text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</span>
                     </div>
@@ -83,13 +181,13 @@ export function ThreadNode({post, isLast = false}: ThreadNodeProps) {
                 <div className="mt-3 flex max-w-md justify-start gap-10 text-muted-foreground">
                     <ActionIcon icon={MessageCircle} count={post.commentsCount} hoverClass="hover:text-blue-500 hover:bg-blue-500/10"/>
                     <ActionIcon icon={Repeat2} count={post.repliesCount} hoverClass="hover:text-green-500 hover:bg-green-500/10"/>
-                    {/*<ActionIcon*/}
-                    {/*    icon={Flame}*/}
-                    {/*    count={likeCount}*/}
-                    {/*    onClick={handleLike}*/}
-                    {/*    hoverClass="hover:text-orange-500 hover:bg-orange-500/10"*/}
-                    {/*    iconClass={cn(liked && "fill-current text-orange-500")}*/}
-                    {/*/>*/}
+                    <ActionIcon
+                        icon={Flame}
+                        count={fireCount}
+                        onClick={handleLike}
+                        hoverClass="hover:text-orange-500 hover:bg-orange-500/10"
+                        iconClass={cn(isFireSelected && "fill-current text-orange-500")}
+                    />
                     <ActionIcon icon={ExternalLink} onClick={handleShare} hoverClass="hover:text-blue-500 hover:bg-blue-500/10"/>
                 </div>
             </div>
@@ -133,9 +231,7 @@ function ThreadRail({
             {showLineBelow && (
                 <div className="absolute left-1/2 top-5 bottom-[-2.25rem] w-0.5 -translate-x-1/2 bg-border"/>
             )}
-            <Avatar className="relative z-10 size-10 shrink-0">
-                <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
-            </Avatar>
+            <UserAvatar username={post.author.username} avatarUrl={post.author.avatarUrl} className="relative z-10 size-10 shrink-0" />
         </div>
     );
 }

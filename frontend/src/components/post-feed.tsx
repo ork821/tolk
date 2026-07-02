@@ -1,12 +1,13 @@
 ﻿"use client";
 
-import {useEffect} from "react";
+import {useEffect, useMemo} from "react";
 import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 
 import {PostCardSkeleton} from "@/components/post-card-skeleton";
 import {PostCard} from "@/components/post-card";
 import type {PostsPageResponse} from "@/lib/api";
+import {usePostReactionsBatch} from "@/hooks/use-post-reactions-batch";
 
 export type {PostsPageResponse} from "@/lib/api";
 
@@ -33,6 +34,9 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
         initialPageParam: null as string | null,
         getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
     });
+    const allPosts = useMemo(() => data?.pages.flatMap((page) => page.posts) ?? [], [data]);
+    const postIds = useMemo(() => allPosts.map((post) => post.id), [allPosts]);
+    const {data: reactionsByPostId = {}} = usePostReactionsBatch(postIds);
 
     // Эффект: загружаем следующую страницу, когда якорь появляется на экране
     useEffect(() => {
@@ -57,9 +61,6 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
         return <div className="p-4 text-center text-destructive">Не удалось загрузить ленту</div>;
     }
 
-    // "Сплющиваем" все загруженные страницы в один массив постов
-    const allPosts = data.pages.flatMap((page) => page.posts);
-
     // 3. Состояние Пустоты
     if (allPosts.length === 0) {
         return <div className="p-10 text-center text-muted-foreground">Здесь пока нет постов.</div>;
@@ -68,7 +69,7 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
         <div className="flex flex-col w-full gap-0 sm:gap-4">
             {/* Рендерим посты */}
             {allPosts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} initialReactions={reactionsByPostId[post.id] ?? []} />
             ))}
 
             {/* Якорь + Скелетоны для дозагрузки следующих страниц */}

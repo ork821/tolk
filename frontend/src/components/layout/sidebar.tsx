@@ -4,11 +4,11 @@ import Link from "next/link";
 import {usePathname, useRouter} from "next/navigation";
 import {Bookmark, Home, LogOut, TrendingUp} from "lucide-react";
 import {cn} from "@/lib/utils";
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {useAuth} from "@/hooks/use-auth";
 import {Skeleton} from "@/components/ui/skeleton";
 // Added missing Button import since it's used in the Guest view but might have been removed or lost if I just deleted the other button
 import {Button} from "@/components/ui/button";
+import {UserAvatar} from "@/components/user-avatar";
 
 const NAV_ITEMS = [
     { icon: Home, label: "Главная", href: "/" },
@@ -75,9 +75,11 @@ export function Sidebar() {
                         onClick={() => router.push("/profile")}
                         className="flex cursor-pointer items-center justify-center rounded-full p-2 transition-colors hover:bg-accent lg:justify-start"
                     >
-                        <Avatar className="h-10 w-10 shrink-0">
-                            <AvatarFallback>{currentUser.displayName[0]}</AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                            username={currentUser.username}
+                            avatarUrl={currentUser.avatarUrl}
+                            className="h-10 w-10 shrink-0"
+                        />
 
                         <div className="ml-3 hidden min-w-0 flex-1 flex-col lg:flex">
                             <span className="font-semibold text-[15px] truncate leading-tight">{currentUser.displayName}</span>

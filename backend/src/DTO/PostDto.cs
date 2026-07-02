@@ -14,9 +14,7 @@ public record PostDto(
     string Content,
     string? ParentPostId,
     [property: Required]
-    string AuthorUsername,
-    [property: Required]
-    string AuthorDisplayName,
+    AuthorDto Author,
     [property: Required]
     bool IsCommentsEnabled,
     [property: Required]
@@ -36,13 +34,16 @@ public record PostDto(
             reader.GetInt32(2),
             reader.GetString(3),
             reader.IsDBNull(4) ? null : reader.GetInt64(4).ToString(),
-            reader.GetString(5),
-            reader.GetString(6),
-            reader.GetBoolean(7),
-            reader.GetInt64(8),
+            new AuthorDto(
+                reader.GetString(5),
+                reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7)
+            ),
+            reader.GetBoolean(8),
             reader.GetInt64(9),
-            reader.GetDateTime(10),
-            reader.IsDBNull(11) ? null : reader.GetDateTime(11)
+            reader.GetInt64(10),
+            reader.GetDateTime(11),
+            reader.IsDBNull(12) ? null : reader.GetDateTime(12)
         );
     }
 }

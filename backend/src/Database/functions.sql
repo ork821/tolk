@@ -39,6 +39,7 @@ CREATE OR REPLACE FUNCTION users.get_user_by_username(p_username TEXT)
                 po_display_name         TEXT,
                 po_email                TEXT,
                 po_description          TEXT,
+                po_avatar_url           TEXT,
                 po_karma                BIGINT,
                 po_followers_count      BIGINT,
                 po_user_follows_count   BIGINT,
@@ -52,6 +53,7 @@ BEGIN
                         u.display_name                    as po_display_name,
                         u.email                           as po_email,
                         ufi.description                   as po_description,
+                        ufi.avatar_url                    as po_avatar_url,
                         COALESCE(ufi.karma, 0)            as po_karma,
                         COALESCE(ufi.followers_count, 0)     as po_followers_count,
                         COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
@@ -72,6 +74,7 @@ CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
                 po_display_name         TEXT,
                 po_email                TEXT,
                 po_description          TEXT,
+                po_avatar_url           TEXT,
                 po_karma                BIGINT,
                 po_followers_count      BIGINT,
                 po_user_follows_count   BIGINT,
@@ -85,6 +88,7 @@ BEGIN
                         u.display_name                    as po_display_name,
                         u.email                           as po_email,
                         ufi.description                   as po_description,
+                        ufi.avatar_url                    as po_avatar_url,
                         COALESCE(ufi.karma, 0)            as po_karma,
                         COALESCE(ufi.followers_count, 0)     as po_followers_count,
                         COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
@@ -125,6 +129,7 @@ CREATE OR REPLACE FUNCTION users.get_user_follows(
             (
                 po_username TEXT,
                 po_display_name TEXT,
+                po_avatar_url TEXT,
                 is_subscribed BOOLEAN,
                 po_created_at TIMESTAMPTZ
             )
@@ -133,6 +138,7 @@ $$
 BEGIN
     RETURN QUERY SELECT u.username,
                         u.display_name,
+                        ufi.avatar_url,
                         CASE
                             WHEN p_my_user_id IS NULL THEN FALSE
                             ELSE EXISTS(
@@ -147,6 +153,7 @@ BEGIN
                  FROM users.users tu
                           JOIN users.user_follow uf on tu.id = uf.from_user_id
                           JOIN users.users u ON u.id = uf.to_user_id
+                          LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  WHERE tu.username = p_username
                    AND tu.deleted_at IS NULL
                    AND u.deleted_at IS NULL
@@ -173,6 +180,7 @@ CREATE OR REPLACE FUNCTION users.get_user_followers(
             (
                 po_username   TEXT,
                 po_display_name TEXT,
+                po_avatar_url TEXT,
                 is_subscribed BOOLEAN,
                 po_created_at TIMESTAMPTZ
             )
@@ -188,6 +196,7 @@ BEGIN
         
     RETURN QUERY SELECT u.username,
                         u.display_name,
+                        ufi.avatar_url,
                         CASE
                             WHEN p_my_user_id IS NULL THEN FALSE
                             ELSE EXISTS(select 1 from users.user_follow uf1 where uf1.from_user_id = p_my_user_id
@@ -197,6 +206,7 @@ BEGIN
                         uf.created_at
                  FROM users.user_follow uf
                           JOIN users.users u ON u.id = uf.from_user_id
+                          LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  WHERE uf.to_user_id = target_user_id 
                    AND u.deleted_at IS NULL
                    AND uf.deleted_at IS NULL
@@ -457,7 +467,8 @@ CREATE OR REPLACE FUNCTION users.login_oauth(
     p_external_id TEXT,
     p_username TEXT,
     p_email TEXT,
-    p_display_name TEXT
+    p_display_name TEXT,
+    p_avatar_url TEXT
 )
     RETURNS TABLE
             (
@@ -539,7 +550,7 @@ BEGIN
         END IF;
 
         -- Инициализируем профиль
-        INSERT INTO users.profile_info (user_id) VALUES (v_user_id);
+        INSERT INTO users.profile_info (user_id, avatar_url) VALUES (v_user_id, p_avatar_url);
     END IF;
 
     -- 5. СОЗДАЕМ ПРИВЯЗКУ ПРОВАЙДЕРА
@@ -777,6 +788,7 @@ CREATE OR REPLACE FUNCTION main.get_user_posts(p_username TEXT,
                 po_parent_post_id    BIGINT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -793,6 +805,7 @@ BEGIN
                         p.parent_post_id,
                         u.username,
                         u.display_name,
+                        ufi.avatar_url,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
@@ -801,6 +814,7 @@ BEGIN
                  FROM main.posts p
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
+                          LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                           LEFT JOIN main.post_stats ps on p.id = ps.post_id
                  WHERE u.username = p_username
                    AND u.deleted_at IS NULL
@@ -829,6 +843,7 @@ CREATE OR REPLACE FUNCTION main.get_group_posts(p_alias TEXT,
                 po_parent_post_id    BIGINT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -845,6 +860,7 @@ BEGIN
                         p.parent_post_id,
                         u.username,
                         u.display_name,
+                        ufi.avatar_url,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
@@ -855,6 +871,7 @@ BEGIN
                           INNER JOIN groups.groups g ON g.id = gp.group_id
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
+                          LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                           LEFT JOIN main.post_stats ps on p.id = ps.post_id
                  WHERE g.alias = p_alias
                    AND g.deleted_at IS NULL
@@ -880,6 +897,7 @@ CREATE OR REPLACE FUNCTION main.get_post(p_post_id BIGINT)
                 po_parent_post_id    BIGINT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -897,6 +915,7 @@ BEGIN
                p.parent_post_id,
                u.username,
                u.display_name,
+               ufi.avatar_url,
                p.comments_enabled,
                COALESCE(ps.comments_count, 0),
                COALESCE(ps.replies_count, 0),
@@ -905,6 +924,7 @@ BEGIN
         FROM main.posts p
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
+                 LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
         WHERE p.id = p_post_id
           AND p.deleted_at IS NULL;
@@ -921,6 +941,7 @@ CREATE OR REPLACE FUNCTION main.get_post_thread(p_post_id BIGINT)
                 po_parent_post_id    BIGINT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -953,6 +974,7 @@ BEGIN
                p.parent_post_id,
                u.username,
                u.display_name,
+               ufi.avatar_url,
                p.comments_enabled,
                COALESCE(ps.comments_count, 0),
                COALESCE(ps.replies_count, 0),
@@ -961,6 +983,7 @@ BEGIN
         FROM main.posts p
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
+                 LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
         WHERE p.path @> v_target_path -- Магия ltree: достаем предков и сам узел
           AND p.deleted_at IS NULL
@@ -992,8 +1015,11 @@ BEGIN
     ON CONFLICT (post_id, user_id, reaction_id) DO NOTHING;
 
     IF FOUND THEN
-        INSERT INTO main.post_reaction_events (post_id, reaction_id, delta)
-        VALUES (p_post_id, p_reaction_id, 1);
+        INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
+        VALUES (p_post_id, p_reaction_id, 1)
+        ON CONFLICT (post_id, reaction_id) DO UPDATE
+            SET count = main.post_reaction_stats.count + 1;
+
     END IF;
 
     RETURN FOUND;
@@ -1023,8 +1049,11 @@ BEGIN
       AND pr.user_id = p_user_id
       AND pr.reaction_id = p_reaction_id;
     IF FOUND THEN
-        INSERT INTO main.post_reaction_events (post_id, reaction_id, delta)
-        VALUES (p_post_id, p_reaction_id, -1);
+        INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
+        VALUES (p_post_id, p_reaction_id, 0)
+        ON CONFLICT (post_id, reaction_id) DO UPDATE
+            SET count = GREATEST(main.post_reaction_stats.count - 1, 0);
+
     END IF;
 
     RETURN FOUND;
@@ -1043,6 +1072,7 @@ CREATE OR REPLACE FUNCTION main.get_feed(p_limit INT DEFAULT 20,
                 po_parent_post_id    BIGINT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1059,6 +1089,7 @@ BEGIN
                         p.parent_post_id,
                         u.username,
                         u.display_name,
+                        ufi.avatar_url,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
@@ -1067,6 +1098,7 @@ BEGIN
                  FROM main.posts p
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
+                          LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                           LEFT JOIN main.post_stats ps on p.id = ps.post_id
                  WHERE u.deleted_at IS NULL
                    AND p.deleted_at IS NULL
@@ -1089,6 +1121,9 @@ CREATE OR REPLACE FUNCTION main.sync_post_reaction_stats(p_limit INT DEFAULT 100
 AS
 $$
 BEGIN
+    -- Legacy async stats sync. Post reaction counters are currently updated synchronously
+    -- in add_post_reactions/delete_post_reactions. New reaction mutations no longer write
+    -- to post_reaction_events, so this function is kept only for old queued events or audit.
     RETURN QUERY
         WITH locked_events AS MATERIALIZED (
             SELECT id,
@@ -1212,7 +1247,40 @@ END;
 $$ language plpgsql;
 
 
-DROP FUNCTION IF EXISTS main.get_post_reactions(BIGINT);
+
+CREATE OR REPLACE FUNCTION main.get_posts_reactions(p_post_ids BIGINT[], p_user_id UUID DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_post_id       BIGINT,
+                po_reaction_name TEXT,
+                po_count         BIGINT,
+                po_is_selected   BOOLEAN
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY
+        WITH requested_posts AS (
+            SELECT DISTINCT unnest(p_post_ids) AS post_id
+        )
+        SELECT rp.post_id,
+               rt.name,
+               COALESCE(prs.count, 0),
+               pr.user_id IS NOT NULL
+        FROM requested_posts rp
+                 CROSS JOIN main.reaction_types rt
+                 LEFT JOIN main.post_reaction_stats prs
+                           ON rt.id = prs.reaction_id AND prs.post_id = rp.post_id
+                 LEFT JOIN main.post_reactions pr
+                           ON p_user_id IS NOT NULL
+                               AND rt.id = pr.reaction_id
+                               AND pr.post_id = rp.post_id
+                               AND pr.user_id = p_user_id
+        WHERE rt.is_active IS TRUE
+          AND rt.deleted_at IS NULL
+        ORDER BY rp.post_id, rt.name;
+END;
+$$ language plpgsql;
 
 CREATE OR REPLACE FUNCTION main.get_post_reactions(p_post_id BIGINT, p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
@@ -1224,19 +1292,12 @@ CREATE OR REPLACE FUNCTION main.get_post_reactions(p_post_id BIGINT, p_user_id U
 AS
 $$
 BEGIN
-    RETURN QUERY SELECT rt.name,
-                        COALESCE(prs.count, 0),
-                        pr.user_id IS NOT NULL
-                 FROM main.reaction_types rt
-                          LEFT JOIN main.post_reaction_stats prs
-                                    ON rt.id = prs.reaction_id AND prs.post_id = p_post_id
-                          LEFT JOIN main.post_reactions pr
-                                    ON p_user_id IS NOT NULL
-                                        AND rt.id = pr.reaction_id
-                                        AND pr.post_id = p_post_id
-                                        AND pr.user_id = p_user_id
-                 WHERE rt.is_active IS TRUE
-                   AND rt.deleted_at IS NULL;
+    RETURN QUERY
+        SELECT reactions.po_reaction_name,
+               reactions.po_count,
+               reactions.po_is_selected
+        FROM main.get_posts_reactions(ARRAY[p_post_id], p_user_id) reactions
+        WHERE reactions.po_post_id = p_post_id;
 END;
 $$ language plpgsql;
 
@@ -1289,6 +1350,7 @@ CREATE OR REPLACE FUNCTION main.get_reply_comments(
                 po_id                  BIGINT,
                 po_author_username     TEXT,
                 po_author_display_name TEXT,
+                po_author_avatar_url   TEXT,
                 po_content_type        INT,
                 po_content             TEXT,
                 po_replies_count       INT,
@@ -1303,6 +1365,7 @@ BEGIN
         SELECT c.id,
                u.username,
                u.display_name,
+               ufi.avatar_url,
                c.content_type,
                c.content,
                c.replies_count,
@@ -1310,6 +1373,7 @@ BEGIN
                c.updated_at
         FROM main.comments c
                  INNER JOIN users.users u ON u.id = c.author_id
+                 LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
         WHERE c.parent_comment_id = p_parent_comment_id
           AND c.deleted_at IS NULL
           AND (
@@ -1323,6 +1387,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
 CREATE OR REPLACE FUNCTION main.get_post_comments(
     p_post_id BIGINT,
     p_limit INT DEFAULT 20,
@@ -1334,6 +1399,7 @@ CREATE OR REPLACE FUNCTION main.get_post_comments(
                 po_id                  BIGINT,
                 po_author_username     TEXT,
                 po_author_display_name TEXT,
+                po_author_avatar_url   TEXT,
                 po_content_type        INT,
                 po_content             TEXT,
                 po_replies_count       INT,
@@ -1348,6 +1414,7 @@ BEGIN
         SELECT c.id,
                u.username,
                u.display_name,
+               ufi.avatar_url,
                c.content_type,
                c.content,
                c.replies_count,
@@ -1355,6 +1422,7 @@ BEGIN
                c.updated_at
         FROM main.comments c
                  INNER JOIN users.users u ON u.id = c.author_id
+                 LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
         WHERE c.post_id = p_post_id
           AND c.parent_comment_id IS NULL
           AND c.deleted_at IS NULL

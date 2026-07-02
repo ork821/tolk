@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import React, {useEffect, useRef, useState} from "react";
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {Smile} from "lucide-react";
 import {useAuth} from "@/hooks/use-auth";
@@ -9,6 +8,7 @@ import {cn} from "@/lib/utils";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
+import {UserAvatar} from "@/components/user-avatar";
 
 interface SubmitFormProps {
     onSubmit?: (content: string) => Promise<void>; // Кастомная логика отправки (если нужна)
@@ -96,9 +96,11 @@ export function SubmitForm({
             isModal ? "p-0" : ""
         )}>
             {/* Аватарка (уменьшается в компактном режиме) */}
-            <Avatar className={cn("shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}>
-                <AvatarFallback>{user.displayName[0]}</AvatarFallback>
-            </Avatar>
+            <UserAvatar
+                username={user.username}
+                avatarUrl={user.avatarUrl}
+                className={cn("shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}
+            />
 
             <div className="flex-1 flex flex-col min-w-0">
         <textarea

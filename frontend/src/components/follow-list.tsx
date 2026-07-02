@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import {useState} from "react";
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {setUserFollow, type FollowListUser} from "@/lib/api";
 import {cn} from "@/lib/utils";
 import {useAuth} from "@/hooks/use-auth";
 import {Skeleton} from "@/components/ui/skeleton";
+import {UserAvatar} from "@/components/user-avatar";
 
 interface FollowListProps {
     users: FollowListUser[];
@@ -38,9 +38,7 @@ function FollowListItem({ user }: { user: FollowListUser }) {
     return (
         <div className="flex gap-3 border-b border-border/60 p-4 last:border-b-0">
             <Link href={`/u/${user.username}`} className="shrink-0">
-                <Avatar className="size-12">
-                    <AvatarFallback>{user.displayName[0]}</AvatarFallback>
-                </Avatar>
+                <UserAvatar username={user.username} avatarUrl={user.avatarUrl} className="size-12" />
             </Link>
 
             <div className="min-w-0 flex-1">

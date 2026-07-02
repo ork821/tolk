@@ -56,6 +56,7 @@ export default function UserProfilePage({params}: {params: Promise<{ username: s
     const profileData: ProfileUser = {
         displayName: profile.displayName,
         username: profile.username,
+        avatarUrl: profile.avatarUrl,
         description: profile.description ?? "",
         stats: {
             following: profile.followUserCount,

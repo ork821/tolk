@@ -7,5 +7,6 @@ public record SocialProfileInfo(
     string Id,
     string? Username,
     string? Email,
-    string? DisplayName
+    string? DisplayName,
+    string? AvatarUrl
 );

@@ -19,11 +19,13 @@ services:
   nginx:
     image: nginxinc/nginx-unprivileged:stable-alpine
     ports:
-      - "80:8080"
+      - "127.0.0.1:80:8080"
+      - "[::1]:80:8080"
     volumes:
       - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "host.docker.internal.ipv4:192.168.65.254"
     restart: unless-stopped
 
 volumes:

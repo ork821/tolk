@@ -36,9 +36,7 @@ CREATE TABLE IF NOT EXISTS users.users
     updated_at   TIMESTAMPTZ,
     deleted_at   TIMESTAMPTZ
 );
-ALTER TABLE users.users ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
-ALTER TABLE users.users DROP CONSTRAINT IF EXISTS users_username_key;
-ALTER TABLE users.users DROP CONSTRAINT IF EXISTS users_email_key;
+
 CREATE UNIQUE INDEX idx_users_username_active ON users.users (username) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_users_email_active ON users.users (email) WHERE deleted_at IS NULL;
 
@@ -46,6 +44,7 @@ CREATE TABLE IF NOT EXISTS users.profile_info
 (
     user_id             UUID PRIMARY KEY REFERENCES users.users (id) ON DELETE CASCADE,
     description         TEXT,
+    avatar_url          TEXT,
     user_follows_count  BIGINT DEFAULT 0,
     group_follows_count BIGINT DEFAULT 0,
     followers_count     BIGINT DEFAULT 0,
@@ -72,7 +71,6 @@ CREATE TABLE IF NOT EXISTS users.refresh_tokens
     -- Мы используем мягкое удаление (или отзыв) токена
     revoked_at TIMESTAMPTZ
 );
-ALTER TABLE users.refresh_tokens ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 -- Индекс для супер-быстрого поиска токена при обновлении (когда бекенд проверяет рефреш)
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON users.refresh_tokens (token) WHERE revoked_at IS NULL;
@@ -90,7 +88,6 @@ CREATE TABLE IF NOT EXISTS users.auth_providers
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
-ALTER TABLE users.auth_providers ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 -- Таблица связей внешних аккаунтов с нашими пользователями
 CREATE TABLE IF NOT EXISTS users.user_auth_providers
@@ -144,7 +141,6 @@ CREATE TABLE IF NOT EXISTS groups.groups
     updated_at   TIMESTAMPTZ,
     deleted_at   TIMESTAMPTZ
 );
-ALTER TABLE groups.groups ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 CREATE UNIQUE INDEX idx_groups_alias_active ON groups.groups (alias) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS groups.group_info
@@ -169,7 +165,7 @@ CREATE TABLE IF NOT EXISTS groups.groups_roles
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
-ALTER TABLE groups.groups_roles ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
+
 
 
 CREATE TABLE IF NOT EXISTS groups.group_user_roles
@@ -263,7 +259,6 @@ CREATE TABLE IF NOT EXISTS main.reaction_types
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
-ALTER TABLE main.reaction_types ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
 
 
 CREATE TABLE IF NOT EXISTS main.post_reactions
@@ -290,6 +285,10 @@ CREATE TABLE IF NOT EXISTS main.post_reaction_stats
 CREATE INDEX IF NOT EXISTS idx_post_reaction_stats_reaction_id
     ON main.post_reaction_stats (reaction_id);
 
+-- Legacy event log for possible asynchronous stats rebuild/audit.
+-- Current read-after-write consistency is provided by synchronous updates to
+-- main.post_reaction_stats in add_post_reactions/delete_post_reactions.
+-- New reaction mutations no longer write rows here.
 CREATE TABLE IF NOT EXISTS main.post_reaction_events
 (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -369,5 +368,5 @@ CREATE TABLE IF NOT EXISTS main.post_attachments
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ
 );
-ALTER TABLE main.post_attachments ALTER COLUMN id SET DEFAULT main.uuid_generate_v7();
+
 CREATE INDEX IF NOT EXISTS idx_post_attachments_post_id ON main.post_attachments (post_id) WHERE deleted_at IS NULL;

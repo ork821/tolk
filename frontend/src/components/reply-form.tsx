@@ -1,19 +1,20 @@
 ﻿"use client";
 
 import React, {useEffect, useRef, useState} from "react";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Image, Smile} from "lucide-react";
 import data from '@emoji-mart/data'
 import Picker from '@emoji-mart/react'
 import {cn} from "@/lib/utils";
+import {UserAvatar} from "@/components/user-avatar";
 
 // Добавь эти пропсы:
 interface ReplyFormProps {
     user: {
+        username: string
         displayName: string
-        avatarUrl: string
+        avatarUrl?: string | null
     };
     onCancel?: () => void; // Если передано, форма считается "встроенной" и покажет кнопку Отмена
     autoFocus?: boolean;   // Автоматически ставить курсор в поле
@@ -62,10 +63,11 @@ export function ReplyForm({
             "flex",
             compact ? "gap-3 pt-3" : "gap-4 p-4 border-b"
         )}>
-            <Avatar className={cn("shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}>
-                <AvatarImage src={user?.avatarUrl}/>
-                <AvatarFallback>{user?.avatarUrl?.[0]}</AvatarFallback>
-            </Avatar>
+            <UserAvatar
+                username={user.username}
+                avatarUrl={user.avatarUrl}
+                className={cn("shrink-0", compact ? "h-8 w-8" : "h-10 w-10")}
+            />
 
             <div className="flex-1 flex flex-col gap-2">
                 <div className="flex-1 flex flex-col gap-1">

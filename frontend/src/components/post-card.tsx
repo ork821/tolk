@@ -5,20 +5,34 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
-import {Avatar, AvatarFallback} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardFooter, CardHeader} from "@/components/ui/card";
 import {client, type GetReactionsDto, type Post} from "@/lib/api";
 import {cn, formatCompactNumber} from "@/lib/utils";
+import {UserAvatar} from "@/components/user-avatar";
 
 export type PostCardProps = Post;
 
 const defaultReaction = "fire";
 
-export function PostCard({post, showAvatar = true}: { post: PostCardProps; showAvatar?: boolean }) {
+export function PostCard({
+    post,
+    showAvatar = true,
+    initialReactions,
+}: {
+    post: PostCardProps;
+    showAvatar?: boolean;
+    initialReactions?: GetReactionsDto[];
+}) {
     const router = useRouter();
     const queryClient = useQueryClient();
-    const reactionsQueryKey = ["posts", post.id, "reactions"] as const;
+    const reactionsQueryKey = React.useMemo(() => ["posts", post.id, "reactions"] as const, [post.id]);
+
+    React.useEffect(() => {
+        if (initialReactions === undefined) return;
+
+        queryClient.setQueryData<GetReactionsDto[]>(reactionsQueryKey, initialReactions);
+    }, [initialReactions, queryClient, reactionsQueryKey]);
 
     const {data: reactions = []} = useQuery({
         queryKey: reactionsQueryKey,
@@ -38,6 +52,8 @@ export function PostCard({post, showAvatar = true}: { post: PostCardProps; showA
 
             return data ?? [];
         },
+        enabled: initialReactions === undefined,
+        initialData: initialReactions,
     });
 
     const fireReaction = reactions.find((reaction) => reaction.name === defaultReaction);
@@ -116,8 +132,8 @@ export function PostCard({post, showAvatar = true}: { post: PostCardProps; showA
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `Пост от ${post.authorDisplayName}`,
-                    text: `Смотри, что пишет ${post.authorDisplayName}: ${post.content.substring(0, 50)}...`,
+                    title: `Пост от ${post.author.displayName}`,
+                    text: `Смотри, что пишет ${post.author.displayName}: ${post.content.substring(0, 50)}...`,
                     url: postUrl,
                 });
             } catch (error) {
@@ -140,28 +156,26 @@ export function PostCard({post, showAvatar = true}: { post: PostCardProps; showA
         >
             <CardHeader className="flex flex-row items-start gap-4 p-4 pb-2">
                 {showAvatar && (
-                    <Avatar className="size-10 shrink-0">
-                        <AvatarFallback>{post.authorDisplayName[0]}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar username={post.author.username} avatarUrl={post.author.avatarUrl} className="size-10 shrink-0" />
                 )}
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex flex-col items-start gap-1 overflow-hidden flex-1">
                             <Link
-                                href={`/u/${post.authorUsername}`}
+                                href={`/u/${post.author.username}`}
                                 className="text-lg font-bold truncate hover:underline decoration-2 underline-offset-2"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                {post.authorDisplayName}
+                                {post.author.displayName}
                             </Link>
 
                             <Link
-                                href={`/u/${post.authorUsername}`}
+                                href={`/u/${post.author.username}`}
                                 className="text-muted-foreground truncate text-sm hover:text-primary transition-colors"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                @{post.authorUsername}
+                                @{post.author.username}
                             </Link>
                         </div>
 

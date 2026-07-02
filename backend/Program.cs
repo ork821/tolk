@@ -81,9 +81,9 @@ builder.Services.AddHttpClient<VkExternalUserInfoProvider>(client =>
     client.BaseAddress = new Uri("https://api.vk.com/");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
-builder.Services.Configure<PostReactionStatsSyncOptions>(
-    builder.Configuration.GetSection(PostReactionStatsSyncOptions.SectionName));
-builder.Services.AddHostedService<PostReactionStatsSyncWorker>();
+// builder.Services.Configure<PostReactionStatsSyncOptions>(
+//     builder.Configuration.GetSection(PostReactionStatsSyncOptions.SectionName));
+// builder.Services.AddHostedService<PostReactionStatsSyncWorker>();
 
 // Register the IConnectionMultiplexer explicitly so it can be accessed via DI
 // (e.g. for the IP rate limiting store)

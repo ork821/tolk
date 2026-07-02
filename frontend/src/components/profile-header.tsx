@@ -1,12 +1,12 @@
 "use client";
 
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {Button} from "@/components/ui/button";
 import {useAuth} from "@/hooks/use-auth";
 import {formatCompactNumber} from "@/lib/utils";
 import Link from "next/link";
 import {useState} from "react";
 import {client} from "@/lib/api";
+import {UserAvatar} from "@/components/user-avatar";
 
 export interface ProfileUser {
     displayName: string;
@@ -16,7 +16,7 @@ export interface ProfileUser {
         following: number;
         followers: number;
     };
-    avatarUrl?: string;
+    avatarUrl?: string | null;
     coverUrl?: string;
     isSubscribed?: boolean;
 }
@@ -78,10 +78,13 @@ export function ProfileHeader({ user, isCurrentUser = false, isSubscribedProp = 
             <div className="px-4 pb-4 bg-background">
                 {/* 2. Аватарка и кнопка действия */}
                 <div className="flex justify-between items-start">
-                    <Avatar className="relative z-10 h-24 w-24 sm:h-32 sm:w-32 -mt-12 sm:-mt-16 ring-4 ring-background bg-background shadow-lg">
-                        <AvatarImage src={user.avatarUrl} alt={user.username} className="object-cover" />
-                        <AvatarFallback className="text-2xl">{user.displayName[0]}</AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                        username={user.username}
+                        avatarUrl={user.avatarUrl}
+                        className="relative z-10 h-24 w-24 sm:h-32 sm:w-32 -mt-12 sm:-mt-16 ring-4 ring-background bg-background shadow-lg"
+                        imageClassName="object-cover"
+                        fallbackClassName="text-2xl"
+                    />
 
                     <div className="mt-3 flex gap-2">
                         {isCurrentUser ? (

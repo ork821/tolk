@@ -193,6 +193,28 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         return Ok(createResult);
     }
     
+    [HttpPost("reactions/batch")]
+    [ProducesResponseType(typeof(GetPostReactionsBatchDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetReactionsBatch(
+        [FromBody] GetPostReactionsBatchRequestDto body,
+        [FromUserId] Guid? userId
+    )
+    {
+        if (body.PostIds.Length == 0) return Ok(Array.Empty<GetPostReactionsBatchDto>());
+
+        var postIds = new List<long>(body.PostIds.Length);
+        foreach (var post in body.PostIds.Distinct())
+        {
+            if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
+            postIds.Add(postId);
+        }
+
+        var reactions = await reactionService.GetPostReactions(postIds.ToArray(), userId);
+
+        return Ok(reactions);
+    }
+    
     [HttpGet("{post}/reactions")]
     [ProducesResponseType(typeof(GetReactionsDto[]), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReactions([FromRoute] string post, [FromUserId] Guid? userId)

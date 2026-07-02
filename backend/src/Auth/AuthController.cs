@@ -56,7 +56,8 @@ public class AuthController(
             externalUserInfo.Id,
             externalUserInfo.Username,
             externalUserInfo.Email,
-            externalUserInfo.DisplayName
+            externalUserInfo.DisplayName,
+            externalUserInfo.AvatarUrl
         );
 
         // 3. Выдаем НАШИ токены
