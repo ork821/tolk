@@ -9,7 +9,7 @@ import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {PostFeed} from "@/components/post-feed";
 import {SubmitForm} from "@/components/input-form";
-import {createPost, getUserPosts} from "@/lib/api";
+import {createPost, getUserPosts, getUserReplies} from "@/lib/api";
 
 export default function MyProfilePage() {
     const {user, isAuthenticated, isLoading} = useAuth();
@@ -34,6 +34,7 @@ export default function MyProfilePage() {
 
     const username = user.username;
     const userPostsQueryKey = ["posts", "user", username];
+    const repliesPostsQueryKey = ["replies", "user", username];
 
     const profileData: ProfileUser = {
         displayName: user.displayName,
@@ -49,6 +50,7 @@ export default function MyProfilePage() {
     const handleCreatePost = async (content: string) => {
         await createPost({content});
         await queryClient.invalidateQueries({queryKey: userPostsQueryKey});
+        await queryClient.invalidateQueries({queryKey: repliesPostsQueryKey});
     };
 
     return (
@@ -94,7 +96,10 @@ export default function MyProfilePage() {
                 </TabsContent>
 
                 <TabsContent value="replies" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Ваши ответы появятся здесь.</p>
+                    <PostFeed
+                        queryKey={repliesPostsQueryKey}
+                        fetchFn={(params) => getUserReplies(username, params)}
+                    />
                 </TabsContent>
 
                 <TabsContent value="reactions" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">

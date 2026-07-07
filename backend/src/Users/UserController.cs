@@ -42,6 +42,35 @@ public class UsersController(UsersService usersService) : ControllerBase
         return Ok(new PagedPostsDto(postsPage, nextToken));
     }
 
+    [HttpGet("{username}/replies")]
+    [ProducesResponseType(typeof(PagedPostsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetUserReplies(
+        [FromRoute] string username,
+        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+    {
+        PostDto[] replies;
+        if (nextPageToken != null)
+        {
+            var decodeResult = CursorEncoder.Decode(nextPageToken);
+            if (decodeResult.lastCreatedAt == null || decodeResult.lastId == null)
+                return BadRequest("Invalid next page token");
+
+            replies = await usersService.GetUserReplies(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastId);
+        }
+        else
+        {
+            replies = await usersService.GetUserReplies(username, PageSize + 1, null, null);
+        }
+
+        var repliesPage = replies.Take(PageSize).ToArray();
+        var nextToken = replies.Length <= PageSize
+            ? null
+            : CursorEncoder.Encode(repliesPage.Last().CreatedAt, repliesPage.Last().Id);
+
+        return Ok(new PagedPostsDto(repliesPage, nextToken));
+    }
+
     [HttpGet("{username}")]
     [ProducesResponseType(typeof(GetUserByUsernameDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

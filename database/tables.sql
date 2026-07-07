@@ -273,6 +273,9 @@ CREATE TABLE IF NOT EXISTS main.post_reactions
     PRIMARY KEY (post_id, user_id, reaction_id)
 );
 CREATE INDEX IF NOT EXISTS idx_post_reactions_user_id ON main.post_reactions (user_id);
+CREATE INDEX IF NOT EXISTS idx_post_reactions_user_active_post
+    ON main.post_reactions (user_id, post_id)
+    WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_post_reactions_reaction_id ON main.post_reactions (reaction_id);
 
 CREATE TABLE IF NOT EXISTS main.post_reaction_stats

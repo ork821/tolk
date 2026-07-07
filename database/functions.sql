@@ -774,7 +774,7 @@ BEGIN
 END;
 $$ language plpgsql;
 
-
+-- Возвращет только оригинальные посты пользователя (без ответов)
 CREATE OR REPLACE FUNCTION main.get_user_posts(p_username TEXT,
                                                p_limit INT DEFAULT 10,
                                                p_last_created_at TIMESTAMPTZ DEFAULT NULL,
@@ -785,7 +785,8 @@ CREATE OR REPLACE FUNCTION main.get_user_posts(p_username TEXT,
                 po_title             TEXT,
                 po_content_type      INT,
                 po_content           TEXT,
-                po_parent_post_id    BIGINT,
+                po_parent_post_author_username    TEXT,
+                po_parent_post_author_display_name    TEXT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
@@ -802,7 +803,8 @@ BEGIN
                         p.title,
                         p.content_type,
                         p.content,
-                        p.parent_post_id,
+                        NULL,
+                        NULL,
                         u.username,
                         u.display_name,
                         ufi.avatar_url,
@@ -819,6 +821,7 @@ BEGIN
                  WHERE u.username = p_username
                    AND u.deleted_at IS NULL
                    AND p.deleted_at IS NULL
+                   AND p.parent_post_id IS NULL
                    AND (
                      p_last_created_at IS NULL
                          OR p_last_id IS NULL
@@ -827,6 +830,144 @@ BEGIN
                  -- Обязательно сортируем по двум полям, чтобы поддержать кортежное сравнение!
                  ORDER BY p.created_at DESC, p.id DESC
                  LIMIT p_limit;
+END;
+$$ language plpgsql;
+
+-- Возвращет только оригинальные посты пользователя (без ответов)
+CREATE OR REPLACE FUNCTION main.get_user_replies(p_username TEXT,
+                                               p_limit INT DEFAULT 10,
+                                               p_last_created_at TIMESTAMPTZ DEFAULT NULL,
+                                               p_last_id BIGINT DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_id                BIGINT,
+                po_title             TEXT,
+                po_content_type      INT,
+                po_content           TEXT,
+                po_parent_post_author_username    TEXT,
+                po_parent_post_author_display_name    TEXT,
+                po_user_username     TEXT,
+                po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
+                po_comments_enabled  BOOLEAN,
+                po_comments_count    BIGINT,
+                po_replies_count     BIGINT,
+                po_created_at        timestamptz,
+                po_updated_at        timestamptz
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT p.id,
+                        p.title,
+                        p.content_type,
+                        p.content,
+                        pu.username,
+                        pu.display_name,
+                        u.username,
+                        u.display_name,
+                        ufi.avatar_url,
+                        p.comments_enabled,
+                        COALESCE(ps.comments_count, 0),
+                        COALESCE(ps.replies_count, 0),
+                        p.created_at,
+                        p.updated_at
+                 FROM main.posts p
+                        JOIN main.user_posts up ON up.post_id = p.id
+                        JOIN users.users u on u.id = up.user_id
+                        JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
+                        JOIN users.users pu on pu.id = pup.user_id
+                        LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
+                        LEFT JOIN main.post_stats ps on p.id = ps.post_id
+                 WHERE u.username = p_username
+                   AND u.deleted_at IS NULL
+                   AND p.deleted_at IS NULL
+                   AND p.parent_post_id IS NOT NULL
+                   AND (
+                     p_last_created_at IS NULL
+                         OR p_last_id IS NULL
+                         OR (p.created_at, p.id) < (p_last_created_at, p_last_id)
+                     )
+                 -- Обязательно сортируем по двум полям, чтобы поддержать кортежное сравнение!
+                 ORDER BY p.created_at DESC, p.id DESC
+                 LIMIT p_limit;
+END;
+$$ language plpgsql;
+
+CREATE OR REPLACE FUNCTION main.get_user_reacted_posts(p_username TEXT,
+                                                       p_limit INT DEFAULT 10,
+                                                       p_last_created_at TIMESTAMPTZ DEFAULT NULL,
+                                                       p_last_id BIGINT DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_id                BIGINT,
+                po_title             TEXT,
+                po_content_type      INT,
+                po_content           TEXT,
+                po_parent_post_author_username    TEXT,
+                po_parent_post_author_display_name    TEXT,
+                po_user_username     TEXT,
+                po_user_display_name TEXT,
+                po_user_avatar_url   TEXT,
+                po_comments_enabled  BOOLEAN,
+                po_comments_count    BIGINT,
+                po_replies_count     BIGINT,
+                po_created_at        timestamptz,
+                po_updated_at        timestamptz
+            )
+AS
+$$
+DECLARE
+    v_user_id UUID;
+BEGIN
+    SELECT u.id
+    INTO v_user_id
+    FROM users.users u
+    WHERE u.username = p_username
+      AND u.deleted_at IS NULL;
+
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+        WITH reacted_posts AS (
+            SELECT DISTINCT pr.post_id
+            FROM main.post_reactions pr
+            WHERE pr.user_id = v_user_id
+              AND pr.deleted_at IS NULL
+        )
+        SELECT p.id,
+               p.title,
+               p.content_type,
+               p.content,
+               pu.username,
+               pu.display_name,
+               u.username,
+               u.display_name,
+               ufi.avatar_url,
+               p.comments_enabled,
+               COALESCE(ps.comments_count, 0),
+               COALESCE(ps.replies_count, 0),
+               p.created_at,
+               p.updated_at
+        FROM reacted_posts rp
+                 JOIN main.posts p ON p.id = rp.post_id
+                 JOIN main.user_posts up ON up.post_id = p.id
+                 JOIN users.users u on u.id = up.user_id
+                 LEFT JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
+                 LEFT JOIN users.users pu on pu.id = pup.user_id AND pu.deleted_at IS NULL
+                 LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
+                 LEFT JOIN main.post_stats ps on p.id = ps.post_id
+        WHERE u.deleted_at IS NULL
+          AND p.deleted_at IS NULL
+          AND (
+            p_last_created_at IS NULL
+                OR p_last_id IS NULL
+                OR (p.created_at, p.id) < (p_last_created_at, p_last_id)
+            )
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT p_limit;
 END;
 $$ language plpgsql;
 
@@ -894,7 +1035,8 @@ CREATE OR REPLACE FUNCTION main.get_post(p_post_id BIGINT)
                 po_title             TEXT,
                 po_content_type      INT,
                 po_content           TEXT,
-                po_parent_post_id    BIGINT,
+                po_parent_post_author_username    TEXT,
+                po_parent_post_author_display_name    TEXT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
@@ -912,7 +1054,8 @@ BEGIN
                p.title,
                p.content_type,
                p.content,
-               p.parent_post_id,
+               pu.username,
+               pu.display_name,
                u.username,
                u.display_name,
                ufi.avatar_url,
@@ -924,6 +1067,8 @@ BEGIN
         FROM main.posts p
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
+                JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
+                JOIN users.users pu on pu.id = pup.user_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
         WHERE p.id = p_post_id
@@ -938,7 +1083,8 @@ CREATE OR REPLACE FUNCTION main.get_post_thread(p_post_id BIGINT)
                 po_title             TEXT,
                 po_content_type      INT,
                 po_content           TEXT,
-                po_parent_post_id    BIGINT,
+                po_parent_post_author_username    TEXT,
+                po_parent_post_author_display_name    TEXT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
@@ -971,7 +1117,8 @@ BEGIN
                p.title,
                p.content_type,
                p.content,
-               p.parent_post_id,
+               NULL,
+               NULL,
                u.username,
                u.display_name,
                ufi.avatar_url,
@@ -1069,7 +1216,8 @@ CREATE OR REPLACE FUNCTION main.get_feed(p_limit INT DEFAULT 20,
                 po_title             TEXT,
                 po_content_type      INT,
                 po_content           TEXT,
-                po_parent_post_id    BIGINT,
+                po_parent_post_author_username    TEXT,
+                po_parent_post_author_display_name    TEXT,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
@@ -1086,7 +1234,8 @@ BEGIN
                         p.title,
                         p.content_type,
                         p.content,
-                        p.parent_post_id,
+                        pu.username,
+                        pu.display_name,
                         u.username,
                         u.display_name,
                         ufi.avatar_url,
@@ -1098,6 +1247,8 @@ BEGIN
                  FROM main.posts p
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
+                        JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
+                        JOIN users.users pu on pu.id = pup.user_id
                           LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                           LEFT JOIN main.post_stats ps on p.id = ps.post_id
                  WHERE u.deleted_at IS NULL

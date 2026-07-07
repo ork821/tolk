@@ -6,7 +6,7 @@ import {Loader2} from "lucide-react";
 import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {PostFeed} from "@/components/post-feed";
-import {client, getUserPosts} from "@/lib/api";
+import {client, getUserPosts, getUserReplies} from "@/lib/api";
 import {useAuth} from "@/hooks/use-auth";
 
 export default function UserProfilePage({params}: {params: Promise<{ username: string }>}) {
@@ -99,7 +99,10 @@ export default function UserProfilePage({params}: {params: Promise<{ username: s
                 </TabsContent>
 
                 <TabsContent value="replies" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Ответы появятся здесь.</p>
+                    <PostFeed
+                        queryKey={["replies", "user", username]}
+                        fetchFn={(params) => getUserReplies(username, params)}
+                    />
                 </TabsContent>
 
                 <TabsContent value="reactions" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">

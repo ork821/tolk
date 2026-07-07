@@ -228,6 +228,31 @@ export async function getUserPosts(
     return data;
 }
 
+export async function getUserReplies(
+    username: string,
+    {nextPageToken}: {nextPageToken: string | null}
+): Promise<PagedPostsDto> {
+    const {data, error} = await client.GET("/v1/users/{username}/replies", {
+        params: {
+            path: {
+                username,
+                version: "1",
+            },
+            query: nextPageToken ? {next_page_token: nextPageToken} : undefined,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to load user posts");
+    }
+
+    return data;
+}
+
 export async function getPostReactionsBatch(postIds: string[]): Promise<PostReactionsByPostId> {
     const uniquePostIds = Array.from(new Set(postIds)).filter(Boolean);
     if (uniquePostIds.length === 0) {

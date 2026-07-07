@@ -5,16 +5,33 @@ services:
       POSTGRES_DB: tolk
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev_password}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer --data-checksums"
       APP_DB_USER: ${APP_DB_USER:-backend}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:-backend_dev_password}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+      - "[::1]:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./backend/src/Database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql
-      - ./backend/src/Database/functions.sql:/docker-entrypoint-initdb.d/02-functions.sql
-      - ./backend/src/Database/init.sh:/docker-entrypoint-initdb.d/03-init.sh:ro
+      - ./database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql
+      - ./database/functions.sql:/docker-entrypoint-initdb.d/02-functions.sql
+      - ./database/init.sh:/docker-entrypoint-initdb.d/03-init.sh:ro
+      - ./database/defaults.sql:/docker-entrypoint-initdb.d/04-defaults.sql
+    shm_size: 256mb
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   nginx:
     image: nginxinc/nginx-unprivileged:stable-alpine
