@@ -174,4 +174,34 @@ public class ReactionService(DatabaseContext databaseContext)
             .Select(postId => new GetPostReactionsBatchDto(postId.ToString(), reactionsByPostId[postId].ToArray()))
             .ToArray();
     }
+
+    public async Task<Dictionary<long, TolkApi.Posts.DTO.PostPermissionsDto>> GetPostPermissions(long[] postIds, Guid userId)
+    {
+        var permissionsByPostId = new Dictionary<long, TolkApi.Posts.DTO.PostPermissionsDto>();
+        foreach (var postId in postIds)
+        {
+            permissionsByPostId.TryAdd(postId, new TolkApi.Posts.DTO.PostPermissionsDto(false, false));
+        }
+
+        if (postIds.Length == 0)
+        {
+            return permissionsByPostId;
+        }
+
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_posts_permissions(@postIds, @userId)");
+        command.Parameters.Add("postIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = postIds;
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            permissionsByPostId[reader.GetInt64(0)] = new TolkApi.Posts.DTO.PostPermissionsDto(
+                reader.GetBoolean(1),
+                reader.GetBoolean(2));
+        }
+
+        return permissionsByPostId;
+    }
 }

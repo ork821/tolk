@@ -4,7 +4,7 @@ import {Suspense, useEffect, useMemo, useState} from "react";
 import {useSearchParams} from "next/navigation";
 import {Loader2} from "lucide-react";
 import {PostCard, PostCardProps} from "@/components/post-card";
-import {usePostReactionsBatch} from "@/hooks/use-post-reactions-batch";
+import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
 function SearchResults() {
     const searchParams = useSearchParams();
@@ -12,7 +12,7 @@ function SearchResults() {
     const [results, setResults] = useState<PostCardProps[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const postIds = useMemo(() => results.map((post) => post.id), [results]);
-    const {data: reactionsByPostId = {}} = usePostReactionsBatch(postIds);
+    const {data: metadataByPostId = {}} = usePostMetadataBatch(postIds);
 
     useEffect(() => {
         const performSearch = async () => {
@@ -53,7 +53,11 @@ function SearchResults() {
             ) : results.length > 0 ? (
                 <div className="flex flex-col gap-4">
                     {results.map((post) => (
-                        <PostCard key={post.id} post={post} initialReactions={reactionsByPostId[post.id] ?? []} />
+                        <PostCard
+                            key={post.id}
+                            post={post}
+                            metadata={metadataByPostId[post.id]}
+                        />
                     ))}
                 </div>
             ) : (

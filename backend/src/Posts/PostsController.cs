@@ -193,15 +193,16 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         return Ok(createResult);
     }
     
-    [HttpPost("reactions/batch")]
-    [ProducesResponseType(typeof(GetPostReactionsBatchDto[]), StatusCodes.Status200OK)]
+
+    [HttpPost("metadata")]
+    [ProducesResponseType(typeof(PostMetadataDto[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetReactionsBatch(
-        [FromBody] GetPostReactionsBatchRequestDto body,
+    public async Task<IActionResult> GetMetadata(
+        [FromBody] GetPostsMetadataRequestDto body,
         [FromUserId] Guid? userId
     )
     {
-        if (body.PostIds.Length == 0) return Ok(Array.Empty<GetPostReactionsBatchDto>());
+        if (body.PostIds.Length == 0) return Ok(Array.Empty<PostMetadataDto>());
 
         var postIds = new List<long>(body.PostIds.Length);
         foreach (var post in body.PostIds.Distinct())
@@ -210,9 +211,27 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
             postIds.Add(postId);
         }
 
+        var uniquePostIds = postIds.ToArray();
         var reactions = await reactionService.GetPostReactions(postIds.ToArray(), userId);
+        var reactionsByPostId = reactions.ToDictionary(x => x.PostId);
 
-        return Ok(reactions);
+        var emptyPermissions = new PostPermissionsDto(false, false);
+        var permissionsByPostId = userId == null
+            ? new Dictionary<long, PostPermissionsDto>()
+            : await reactionService.GetPostPermissions(uniquePostIds, userId.Value);
+
+        var metadata = uniquePostIds
+            .Select(postId => new PostMetadataDto(
+                postId.ToString(),
+                reactionsByPostId.TryGetValue(postId.ToString(), out var postReactions)
+                    ? postReactions.Reactions
+                    : [],
+                permissionsByPostId.TryGetValue(postId, out var permissions)
+                    ? permissions
+                    : emptyPermissions))
+            .ToArray();
+
+        return Ok(metadata);
     }
     
     [HttpGet("{post}/reactions")]

@@ -7,7 +7,7 @@ import {useInView} from "react-intersection-observer";
 import {PostCardSkeleton} from "@/components/post-card-skeleton";
 import {PostCard} from "@/components/post-card";
 import type {PostsPageResponse} from "@/lib/api";
-import {usePostReactionsBatch} from "@/hooks/use-post-reactions-batch";
+import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
 export type {PostsPageResponse} from "@/lib/api";
 
@@ -36,7 +36,7 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
     });
     const allPosts = useMemo(() => data?.pages.flatMap((page) => page.posts) ?? [], [data]);
     const postIds = useMemo(() => allPosts.map((post) => post.id), [allPosts]);
-    const {data: reactionsByPostId = {}} = usePostReactionsBatch(postIds);
+    const {data: metadataByPostId = {}} = usePostMetadataBatch(postIds);
 
     // Эффект: загружаем следующую страницу, когда якорь появляется на экране
     useEffect(() => {
@@ -69,7 +69,11 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
         <div className="flex flex-col w-full gap-0 sm:gap-4">
             {/* Рендерим посты */}
             {allPosts.map((post) => (
-                <PostCard key={post.id} post={post} initialReactions={reactionsByPostId[post.id] ?? []} />
+                <PostCard
+                    key={post.id}
+                    post={post}
+                    metadata={metadataByPostId[post.id]}
+                />
             ))}
 
             {/* Якорь + Скелетоны для дозагрузки следующих страниц */}

@@ -794,7 +794,8 @@ CREATE OR REPLACE FUNCTION main.get_user_posts(p_username TEXT,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -812,7 +813,8 @@ BEGIN
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
                         p.created_at,
-                        p.updated_at
+                        p.updated_at,
+                        NULL::timestamptz
                  FROM main.posts p
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
@@ -853,7 +855,8 @@ CREATE OR REPLACE FUNCTION main.get_user_replies(p_username TEXT,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -871,7 +874,8 @@ BEGIN
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
                         p.created_at,
-                        p.updated_at
+                        p.updated_at,
+                        NULL::timestamptz
                  FROM main.posts p
                         JOIN main.user_posts up ON up.post_id = p.id
                         JOIN users.users u on u.id = up.user_id
@@ -913,7 +917,8 @@ CREATE OR REPLACE FUNCTION main.get_user_reacted_posts(p_username TEXT,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -950,7 +955,8 @@ BEGIN
                COALESCE(ps.comments_count, 0),
                COALESCE(ps.replies_count, 0),
                p.created_at,
-               p.updated_at
+               p.updated_at,
+               NULL::timestamptz
         FROM reacted_posts rp
                  JOIN main.posts p ON p.id = rp.post_id
                  JOIN main.user_posts up ON up.post_id = p.id
@@ -989,7 +995,8 @@ CREATE OR REPLACE FUNCTION main.get_group_posts(p_alias TEXT,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -1006,7 +1013,8 @@ BEGIN
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
                         p.created_at,
-                        p.updated_at
+                        p.updated_at,
+                        NULL::timestamptz
                  FROM main.posts p
                           INNER JOIN main.group_posts gp ON p.id = gp.post_id
                           INNER JOIN groups.groups g ON g.id = gp.group_id
@@ -1044,7 +1052,8 @@ CREATE OR REPLACE FUNCTION main.get_post(p_post_id BIGINT)
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -1063,7 +1072,8 @@ BEGIN
                COALESCE(ps.comments_count, 0),
                COALESCE(ps.replies_count, 0),
                p.created_at,
-               p.updated_at
+               p.updated_at,
+               NULL::timestamptz
         FROM main.posts p
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
@@ -1092,7 +1102,8 @@ CREATE OR REPLACE FUNCTION main.get_post_thread(p_post_id BIGINT)
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -1103,8 +1114,7 @@ BEGIN
     SELECT p.path
     INTO v_target_path
     FROM main.posts p
-    WHERE p.id = p_post_id
-      AND p.deleted_at IS NULL;
+    WHERE p.id = p_post_id;
 
     -- Если пост удален или не существует, сразу выходим (возвращаем пустоту)
     IF NOT FOUND THEN
@@ -1114,26 +1124,26 @@ BEGIN
     -- 2. Одним запросом достаем всех предков и сам пост!
     RETURN QUERY
         SELECT p.id,
-               p.title,
-               p.content_type,
-               p.content,
+               CASE WHEN p.deleted_at IS NULL THEN p.title ELSE '' END,
+               CASE WHEN p.deleted_at IS NULL THEN p.content_type ELSE 0 END,
+               CASE WHEN p.deleted_at IS NULL THEN p.content ELSE '' END,
                NULL,
                NULL,
-               u.username,
-               u.display_name,
-               ufi.avatar_url,
-               p.comments_enabled,
-               COALESCE(ps.comments_count, 0),
-               COALESCE(ps.replies_count, 0),
+               CASE WHEN p.deleted_at IS NULL THEN u.username ELSE '' END,
+               CASE WHEN p.deleted_at IS NULL THEN u.display_name ELSE '' END,
+               CASE WHEN p.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
+               p.deleted_at IS NULL AND p.comments_enabled,
+               CASE WHEN p.deleted_at IS NULL THEN COALESCE(ps.comments_count, 0) ELSE 0 END,
+               CASE WHEN p.deleted_at IS NULL THEN COALESCE(ps.replies_count, 0) ELSE 0 END,
                p.created_at,
-               p.updated_at
+               p.updated_at,
+               p.deleted_at
         FROM main.posts p
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
         WHERE p.path @> v_target_path -- Магия ltree: достаем предков и сам узел
-          AND p.deleted_at IS NULL
         ORDER BY p.path;
 END;
 $$ language plpgsql;
@@ -1225,7 +1235,8 @@ CREATE OR REPLACE FUNCTION main.get_feed(p_limit INT DEFAULT 20,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
                 po_created_at        timestamptz,
-                po_updated_at        timestamptz
+                po_updated_at        timestamptz,
+                po_deleted_at        timestamptz
             )
 AS
 $$
@@ -1243,7 +1254,8 @@ BEGIN
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
                         p.created_at,
-                        p.updated_at
+                        p.updated_at,
+                        NULL::timestamptz
                  FROM main.posts p
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
@@ -1397,6 +1409,36 @@ BEGIN
 END;
 $$ language plpgsql;
 
+
+
+CREATE OR REPLACE FUNCTION main.get_posts_permissions(p_post_ids BIGINT[], p_user_id UUID DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_post_id     BIGINT,
+                po_can_edit    BOOLEAN,
+                po_can_delete  BOOLEAN
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY
+        WITH requested_posts AS (
+            SELECT DISTINCT unnest(p_post_ids) AS post_id
+        )
+        SELECT rp.post_id,
+               p.id IS NOT NULL AND p_user_id IS NOT NULL AND up.user_id = p_user_id,
+               p.id IS NOT NULL AND p_user_id IS NOT NULL AND up.user_id = p_user_id
+        FROM requested_posts rp
+                 LEFT JOIN main.posts p
+                           ON p.id = rp.post_id
+                          AND p.deleted_at IS NULL
+                 LEFT JOIN main.user_posts up
+                           ON up.post_id = p.id
+                          AND p_user_id IS NOT NULL
+                          AND up.user_id = p_user_id
+        ORDER BY rp.post_id;
+END;
+$$ language plpgsql;
 
 
 CREATE OR REPLACE FUNCTION main.get_posts_reactions(p_post_ids BIGINT[], p_user_id UUID DEFAULT NULL)

@@ -9,7 +9,7 @@ import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {PostFeed} from "@/components/post-feed";
 import {SubmitForm} from "@/components/input-form";
-import {createPost, getUserPosts, getUserReplies} from "@/lib/api";
+import {createPost, getUserPosts, getUserReactedPosts, getUserReplies} from "@/lib/api";
 
 export default function MyProfilePage() {
     const {user, isAuthenticated, isLoading} = useAuth();
@@ -35,6 +35,7 @@ export default function MyProfilePage() {
     const username = user.username;
     const userPostsQueryKey = ["posts", "user", username];
     const repliesPostsQueryKey = ["replies", "user", username];
+    const reactedPostsQueryKey = ["reacts", "user", username];
 
     const profileData: ProfileUser = {
         displayName: user.displayName,
@@ -51,6 +52,7 @@ export default function MyProfilePage() {
         await createPost({content});
         await queryClient.invalidateQueries({queryKey: userPostsQueryKey});
         await queryClient.invalidateQueries({queryKey: repliesPostsQueryKey});
+        await queryClient.invalidateQueries({queryKey: reactedPostsQueryKey});
     };
 
     return (
@@ -103,7 +105,10 @@ export default function MyProfilePage() {
                 </TabsContent>
 
                 <TabsContent value="reactions" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Посты, на которые вы отреагировали, появятся здесь.</p>
+                    <PostFeed
+                        queryKey={reactedPostsQueryKey}
+                        fetchFn={(params) => getUserReactedPosts(username, params)}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

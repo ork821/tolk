@@ -106,8 +106,6 @@ export type CreatePostBodyDto = ApiSchemas["CreatePostBodyDto"];
 export type CreateReplyCommentBodyDto = ApiSchemas["CreateReplyCommentBodyDto"];
 export type CreateUpdateCommentDto = ApiSchemas["CreateUpdateCommentDto"];
 export type CreateUpdatePostDto = ApiSchemas["CreateUpdatePostDto"];
-export type GetPostReactionsBatchDto = ApiSchemas["GetPostReactionsBatchDto"];
-export type GetPostReactionsBatchRequestDto = ApiSchemas["GetPostReactionsBatchRequestDto"];
 export type GetReactionsDto = ApiSchemas["GetReactionsDto"];
 export type GetUserByUsernameDto = ApiSchemas["GetUserByUsernameDto"];
 export type GetUserFollowersDto = ApiSchemas["GetUserFollowersDto"];
@@ -120,6 +118,8 @@ export type PagedPostsDto = ApiSchemas["PagedPostsDto"];
 export type PagedUserFollowersDto = ApiSchemas["PagedUserFollowersDto"];
 export type PagedUserFollowsDto = ApiSchemas["PagedUserFollowsDto"];
 export type PagedUserGroupFollowsDto = ApiSchemas["PagedUserGroupFollowsDto"];
+export type PostMetadataDto = ApiSchemas["PostMetadataDto"];
+export type PostPermissionsDto = ApiSchemas["PostPermissionsDto"];
 export type PostDto = ApiSchemas["PostDto"];
 export type ProblemDetails = ApiSchemas["ProblemDetails"];
 export type ReactionTypeDto = ApiSchemas["ReactionTypeDto"];
@@ -138,6 +138,7 @@ export type Post = PostDto;
 export type Comment = CommentEntity;
 export type PostsPageResponse = PagedPostsDto;
 export type CommentsPageResponse = PagedCommentsDto;
+export type PostMetadataByPostId = Record<string, PostMetadataDto>;
 export type PostReactionsByPostId = Record<string, GetReactionsDto[]>;
 export type FollowListUser = (GetUserFollowsDto | GetUserFollowersDto) & {
     isSubscribed?: boolean;
@@ -253,13 +254,38 @@ export async function getUserReplies(
     return data;
 }
 
-export async function getPostReactionsBatch(postIds: string[]): Promise<PostReactionsByPostId> {
+export async function getUserReactedPosts(
+    username: string,
+    {nextPageToken}: {nextPageToken: string | null}
+): Promise<PagedPostsDto> {
+    const {data, error} = await client.GET("/v1/users/{username}/reacts", {
+        params: {
+            path: {
+                username,
+                version: "1",
+            },
+            query: nextPageToken ? {next_page_token: nextPageToken} : undefined,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to load user posts");
+    }
+
+    return data;
+}
+
+export async function getPostsMetadata(postIds: string[]): Promise<PostMetadataByPostId> {
     const uniquePostIds = Array.from(new Set(postIds)).filter(Boolean);
     if (uniquePostIds.length === 0) {
         return {};
     }
 
-    const {data, error} = await client.POST("/v1/posts/reactions/batch", {
+    const {data, error} = await client.POST("/v1/posts/metadata", {
         params: {
             path: {
                 version: "1",
@@ -274,7 +300,7 @@ export async function getPostReactionsBatch(postIds: string[]): Promise<PostReac
         throw error;
     }
 
-    return Object.fromEntries((data ?? []).map((item) => [item.postId, item.reactions]));
+    return Object.fromEntries((data ?? []).map((item) => [item.id, item]));
 }
 
 export async function getUserFollows(

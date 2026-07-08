@@ -994,7 +994,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/posts/reactions/batch": {
+    "/v1/posts/metadata": {
         parameters: {
             query?: never;
             header?: never;
@@ -1014,10 +1014,10 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json-patch+json": components["schemas"]["GetPostReactionsBatchRequestDto"];
-                    "application/json": components["schemas"]["GetPostReactionsBatchRequestDto"];
-                    "text/json": components["schemas"]["GetPostReactionsBatchRequestDto"];
-                    "application/*+json": components["schemas"]["GetPostReactionsBatchRequestDto"];
+                    "application/json-patch+json": components["schemas"]["GetPostsMetadataRequestDto"];
+                    "application/json": components["schemas"]["GetPostsMetadataRequestDto"];
+                    "text/json": components["schemas"]["GetPostsMetadataRequestDto"];
+                    "application/*+json": components["schemas"]["GetPostsMetadataRequestDto"];
                 };
             };
             responses: {
@@ -1027,9 +1027,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["GetPostReactionsBatchDto"][];
-                        "application/json": components["schemas"]["GetPostReactionsBatchDto"][];
-                        "text/json": components["schemas"]["GetPostReactionsBatchDto"][];
+                        "text/plain": components["schemas"]["PostMetadataDto"][];
+                        "application/json": components["schemas"]["PostMetadataDto"][];
+                        "text/json": components["schemas"]["PostMetadataDto"][];
                     };
                 };
                 /** @description Bad Request */
@@ -1264,6 +1264,59 @@ export interface paths {
         trace?: never;
     };
     "/v1/users/{username}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    next_page_token?: string;
+                };
+                header?: never;
+                path: {
+                    username: string;
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PagedPostsDto"];
+                        "application/json": components["schemas"]["PagedPostsDto"];
+                        "text/json": components["schemas"]["PagedPostsDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{username}/reacts": {
         parameters: {
             query?: never;
             header?: never;
@@ -1660,11 +1713,7 @@ export interface components {
             contentType: number;
             content: string;
         };
-        GetPostReactionsBatchDto: {
-            postId: string;
-            reactions: components["schemas"]["GetReactionsDto"][];
-        };
-        GetPostReactionsBatchRequestDto: {
+        GetPostsMetadataRequestDto: {
             postIds: string[];
         };
         GetReactionsDto: {
@@ -1755,6 +1804,17 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt?: string | null;
+            /** Format: date-time */
+            deletedAt?: string | null;
+        };
+        PostMetadataDto: {
+            id: string;
+            reactions: components["schemas"]["GetReactionsDto"][];
+            permissions: components["schemas"]["PostPermissionsDto"];
+        };
+        PostPermissionsDto: {
+            canEdit: boolean;
+            canDelete: boolean;
         };
         ProblemDetails: {
             type?: string | null;

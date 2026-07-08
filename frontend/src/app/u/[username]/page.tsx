@@ -6,7 +6,7 @@ import {Loader2} from "lucide-react";
 import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {PostFeed} from "@/components/post-feed";
-import {client, getUserPosts, getUserReplies} from "@/lib/api";
+import {client, getUserPosts, getUserReactedPosts, getUserReplies} from "@/lib/api";
 import {useAuth} from "@/hooks/use-auth";
 
 export default function UserProfilePage({params}: {params: Promise<{ username: string }>}) {
@@ -106,7 +106,10 @@ export default function UserProfilePage({params}: {params: Promise<{ username: s
                 </TabsContent>
 
                 <TabsContent value="reactions" className="m-0 p-12 text-center bg-muted/10 rounded-3xl mt-4 border border-dashed">
-                    <p className="text-muted-foreground font-medium italic">Посты, на которые пользователь отреагировал, появятся здесь.</p>
+                    <PostFeed
+                        queryKey={["reacts", "user", username]}
+                        fetchFn={(params) => getUserReactedPosts(username, params)}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

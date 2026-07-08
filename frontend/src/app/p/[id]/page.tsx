@@ -11,7 +11,7 @@ import {CommentFeed} from "@/components/comment-feed";
 import {useAuth} from "@/hooks/use-auth";
 import {client, createPost} from "@/lib/api";
 import {useRouter} from "next/navigation";
-import {usePostReactionsBatch} from "@/hooks/use-post-reactions-batch";
+import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
 export default function PostThreadPage({params}: {params: Promise<{id: string}>}) {
     const {user} = useAuth();
@@ -47,7 +47,7 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
     const threadPosts = data ? data.slice(0, data.length - 1) : [];
     const mainPost = data ? data[data.length - 1] : undefined;
     const postIds = React.useMemo(() => data?.map((post) => post.id) ?? [], [data]);
-    const {data: reactionsByPostId = {}} = usePostReactionsBatch(postIds);
+    const {data: metadataByPostId = {}} = usePostMetadataBatch(postIds);
 
 
     const handleCreatePost = async (content: string) => {
@@ -81,7 +81,7 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                             key={post.id}
                             post={post}
                             isLast={false}
-                            initialReactions={reactionsByPostId[post.id] ?? []}
+                            initialReactions={metadataByPostId[post.id]?.reactions ?? []}
                         />
                     ))}
 
@@ -89,7 +89,7 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                         <PostCard
                             post={mainPost}
                             showAvatar={false}
-                            initialReactions={reactionsByPostId[mainPost.id] ?? []}
+                            metadata={metadataByPostId[mainPost.id]}
                         />
                     </ThreadMainPost>
                     {user && (

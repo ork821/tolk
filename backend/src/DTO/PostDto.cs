@@ -34,7 +34,9 @@ public record PostDto(
     [property: Required]
     DateTime CreatedAt,
     
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    
+    DateTime? DeletedAt
 )
 {
     public static PostDto FromReader(NpgsqlDataReader reader)
@@ -57,7 +59,8 @@ public record PostDto(
             reader.GetInt64(10),
             reader.GetInt64(11),
             reader.GetDateTime(12),
-            reader.IsDBNull(13) ? null : reader.GetDateTime(13)
+            reader.IsDBNull(13) ? null : reader.GetDateTime(13),
+            reader.IsDBNull(14) ? null : reader.GetDateTime(14)
         );
     }
 }

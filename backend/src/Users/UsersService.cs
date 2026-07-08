@@ -49,6 +49,28 @@ public class UsersService(DatabaseContext databaseContext)
 
         return replies.ToArray();
     }
+    
+    public async Task<PostDto[]> GetUserReactedPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_user_reacted_posts(@username, @limit, @lastCreatedAt, @lastId)");
+
+        command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
+        command.Parameters.AddWithValue("@lastId", lastId != null ? lastId : DBNull.Value);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var replies = new List<PostDto>();
+
+        while (await reader.ReadAsync())
+        {
+            replies.Add(PostDto.FromReader(reader));
+        }
+
+        return replies.ToArray();
+    }
 
     public async Task<GetUserByUsernameDto?> GetUserByUsername(string username)
     {

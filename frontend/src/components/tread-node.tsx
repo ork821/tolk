@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button} from "@/components/ui/button";
-import {ExternalLink, Flame, MessageCircle, MoreHorizontal, Repeat2} from "lucide-react";
+import {ExternalLink, Flame, MessageCircle, Repeat2, Skull} from "lucide-react";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import type {PostCardProps} from "@/components/post-card";
 import {client, type GetReactionsDto} from "@/lib/api";
@@ -19,6 +19,14 @@ interface ThreadNodeProps {
 const defaultReaction = "fire";
 
 export function ThreadNode({post, isLast = false, initialReactions}: ThreadNodeProps) {
+    if (post.deletedAt) {
+        return <DeletedThreadNode post={post} isLast={isLast} />;
+    }
+
+    return <ActiveThreadNode post={post} isLast={isLast} initialReactions={initialReactions} />;
+}
+
+function ActiveThreadNode({post, isLast = false, initialReactions}: ThreadNodeProps) {
     const queryClient = useQueryClient();
     const reactionsQueryKey = React.useMemo(() => ["posts", post.id, "reactions"] as const, [post.id]);
 
@@ -146,7 +154,7 @@ export function ThreadNode({post, isLast = false, initialReactions}: ThreadNodeP
     };
 
     return (
-        <div className="relative flex cursor-pointer gap-4 p-4 transition-colors hover:bg-accent/5">
+        <div className="relative flex gap-4 p-4 transition-colors hover:bg-accent/5">
             <ThreadRail post={post} showLineBelow={!isLast}/>
 
             <div className="min-w-0 flex-1 pb-2">
@@ -163,15 +171,6 @@ export function ThreadNode({post, isLast = false, initialReactions}: ThreadNodeP
                         <span className="text-sm text-muted-foreground">·</span>
                         <span className="text-sm text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</span>
                     </div>
-
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-full text-muted-foreground"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <MoreHorizontal className="h-4 w-4"/>
-                    </Button>
                 </div>
 
                 <div className="mt-1 break-words text-[15px] leading-normal text-foreground">
@@ -195,6 +194,34 @@ export function ThreadNode({post, isLast = false, initialReactions}: ThreadNodeP
     );
 }
 
+function DeletedThreadNode({post, isLast = false}: Pick<ThreadNodeProps, "post" | "isLast">) {
+    return (
+        <div className="relative flex gap-4 p-4">
+            <ThreadRail post={post} showLineBelow={!isLast}/>
+
+            <DeletedPostTombstone deletedAt={post.deletedAt} />
+        </div>
+    );
+}
+
+function DeletedPostTombstone({deletedAt}: {deletedAt?: string | null}) {
+    return (
+        <div className="min-w-0 flex-1 pb-2">
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                <div className="flex flex-row items-center justify-start text-center">
+                    <Skull />
+                    <div className="font-medium text-foreground">Пост удален</div>
+                </div>
+                {deletedAt && (
+                    <div className="mt-1">
+                        {new Date(deletedAt).toLocaleString()}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export function ThreadMainPost({
     post,
     children,
@@ -204,6 +231,15 @@ export function ThreadMainPost({
     children: React.ReactNode;
     showLineAbove?: boolean;
 }) {
+    if (post.deletedAt) {
+        return (
+            <div className="relative flex gap-4 p-4">
+                <ThreadRail post={post} showLineAbove={showLineAbove} showLineBelow={false}/>
+                <DeletedPostTombstone deletedAt={post.deletedAt} />
+            </div>
+        );
+    }
+
     return (
         <div className="relative flex gap-4 p-4">
             <ThreadRail post={post} showLineAbove={showLineAbove} showLineBelow={false}/>
@@ -231,7 +267,11 @@ function ThreadRail({
             {showLineBelow && (
                 <div className="absolute left-1/2 top-5 bottom-[-2.25rem] w-0.5 -translate-x-1/2 bg-border"/>
             )}
-            <UserAvatar username={post.author.username} avatarUrl={post.author.avatarUrl} className="relative z-10 size-10 shrink-0" />
+            {post.deletedAt ? (
+                <div className="relative z-10 size-10 shrink-0 rounded-full border border-dashed border-border bg-muted" />
+            ) : (
+                <UserAvatar username={post.author.username} avatarUrl={post.author.avatarUrl} className="relative z-10 size-10 shrink-0" />
+            )}
         </div>
     );
 }
