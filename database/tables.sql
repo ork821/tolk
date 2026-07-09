@@ -1,4 +1,4 @@
-CREATE EXTENSION IF NOT EXISTS "ltree";
+﻿CREATE EXTENSION IF NOT EXISTS "ltree";
 
 CREATE SCHEMA IF NOT EXISTS main;
 CREATE SCHEMA IF NOT EXISTS users;
@@ -45,9 +45,9 @@ CREATE TABLE IF NOT EXISTS users.profile_info
     user_id             UUID PRIMARY KEY REFERENCES users.users (id) ON DELETE CASCADE,
     description         TEXT,
     avatar_url          TEXT,
-    user_follows_count  BIGINT DEFAULT 0,
-    group_follows_count BIGINT DEFAULT 0,
-    followers_count     BIGINT DEFAULT 0,
+    user_subscribes_count  BIGINT DEFAULT 0,
+    group_subscribes_count BIGINT DEFAULT 0,
+    subscribers_count     BIGINT DEFAULT 0,
     karma               BIGINT DEFAULT 0
 );
 
@@ -113,7 +113,7 @@ CREATE UNIQUE INDEX idx_user_auth_providers_user_provider
 
 
 -- Подписки
-CREATE TABLE IF NOT EXISTS users.user_follow
+CREATE TABLE IF NOT EXISTS users.user_subscribe
 (
     from_user_id UUID REFERENCES users.users (id) ON DELETE CASCADE, -- Кто подписывается
     to_user_id   UUID REFERENCES users.users (id) ON DELETE CASCADE, -- на кого подписывается
@@ -122,9 +122,9 @@ CREATE TABLE IF NOT EXISTS users.user_follow
     deleted_at   TIMESTAMPTZ,
     PRIMARY KEY (from_user_id, to_user_id)
 );
-CREATE INDEX IF NOT EXISTS idx_user_follow_to_user ON users.user_follow (to_user_id);
-CREATE INDEX IF NOT EXISTS idx_user_follow_from_date ON users.user_follow (from_user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_follow_to_date ON users.user_follow (to_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_subscribe_to_user ON users.user_subscribe (to_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_subscribe_from_date ON users.user_subscribe (from_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_subscribe_to_date ON users.user_subscribe (to_user_id, created_at DESC);
 
 ---------
 
@@ -146,7 +146,7 @@ CREATE UNIQUE INDEX idx_groups_alias_active ON groups.groups (alias) WHERE delet
 CREATE TABLE IF NOT EXISTS groups.group_info
 (
     group_id        UUID PRIMARY KEY REFERENCES groups.groups (id) ON DELETE CASCADE,
-    followers_count INT         DEFAULT 0,
+    subscribers_count INT         DEFAULT 0,
 
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ,
@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS groups.group_user_roles
 CREATE INDEX IF NOT EXISTS idx_group_user_roles_user ON groups.group_user_roles (user_id);
 CREATE INDEX IF NOT EXISTS idx_group_user_roles_role ON groups.group_user_roles (role_id);
 
-CREATE TABLE IF NOT EXISTS users.group_follow
+CREATE TABLE IF NOT EXISTS users.group_subscribe
 (
     from_user_id UUID REFERENCES users.users (id) ON DELETE CASCADE, -- кто подписывается
     group_id     UUID REFERENCES groups.groups (id) ON DELETE CASCADE,
@@ -192,8 +192,8 @@ CREATE TABLE IF NOT EXISTS users.group_follow
     deleted_at   TIMESTAMPTZ,
     PRIMARY KEY (from_user_id, group_id)
 );
-CREATE INDEX IF NOT EXISTS idx_group_follow_group ON users.group_follow (group_id);
-CREATE INDEX IF NOT EXISTS idx_group_follow_from_date ON users.group_follow (from_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_group_subscribe_group ON users.group_subscribe (group_id);
+CREATE INDEX IF NOT EXISTS idx_group_subscribe_from_date ON users.group_subscribe (from_user_id, created_at DESC);
 
 -- Посты
 CREATE TABLE IF NOT EXISTS main.posts

@@ -31,8 +31,6 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS users.get_user_by_username(TEXT);
-DROP FUNCTION IF EXISTS users.get_user_by_username(TEXT, UUID);
 
 CREATE OR REPLACE FUNCTION users.get_user_by_username(p_username TEXT, p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
@@ -44,9 +42,9 @@ CREATE OR REPLACE FUNCTION users.get_user_by_username(p_username TEXT, p_user_id
                 po_description          TEXT,
                 po_avatar_url           TEXT,
                 po_karma                BIGINT,
-                po_followers_count      BIGINT,
-                po_user_follows_count   BIGINT,
-                po_groups_follows_count BIGINT,
+                po_subscribers_count      BIGINT,
+                po_user_subscribes_count   BIGINT,
+                po_group_subscribes_count BIGINT,
                 po_is_subscribed        BOOLEAN,
                 po_is_me                BOOLEAN
             )
@@ -60,14 +58,14 @@ BEGIN
                         ufi.description                   as po_description,
                         ufi.avatar_url                    as po_avatar_url,
                         COALESCE(ufi.karma, 0)            as po_karma,
-                        COALESCE(ufi.followers_count, 0)     as po_followers_count,
-                        COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
-                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count,
+                        COALESCE(ufi.subscribers_count, 0)     as po_subscribers_count,
+                        COALESCE(ufi.user_subscribes_count, 0)  as po_user_subscribes_count,
+                        COALESCE(ufi.group_subscribes_count, 0) as po_group_subscribes_count,
                         CASE
                             WHEN p_user_id IS NULL THEN FALSE
                             ELSE EXISTS (
                                 SELECT 1
-                                FROM users.user_follow uf
+                                FROM users.user_subscribe uf
                                 WHERE uf.from_user_id = p_user_id
                                   AND uf.to_user_id = u.id
                                   AND uf.deleted_at IS NULL
@@ -85,7 +83,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS users.get_users_metadata(TEXT[], UUID);
 
 CREATE OR REPLACE FUNCTION users.get_users_metadata(p_usernames TEXT[], p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
@@ -102,7 +99,7 @@ BEGIN
                             WHEN p_user_id IS NULL THEN FALSE
                             ELSE EXISTS (
                                 SELECT 1
-                                FROM users.user_follow uf
+                                FROM users.user_subscribe uf
                                 WHERE uf.from_user_id = p_user_id
                                   AND uf.to_user_id = u.id
                                   AND uf.deleted_at IS NULL
@@ -118,7 +115,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS users.get_user_by_id(UUID);
 
 CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
     RETURNS TABLE
@@ -130,9 +126,9 @@ CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
                 po_description          TEXT,
                 po_avatar_url           TEXT,
                 po_karma                BIGINT,
-                po_followers_count      BIGINT,
-                po_user_follows_count   BIGINT,
-                po_groups_follows_count BIGINT,
+                po_subscribers_count      BIGINT,
+                po_user_subscribes_count   BIGINT,
+                po_group_subscribes_count BIGINT,
                 po_is_subscribed        BOOLEAN,
                 po_is_me                BOOLEAN
             )
@@ -146,9 +142,9 @@ BEGIN
                         ufi.description                   as po_description,
                         ufi.avatar_url                    as po_avatar_url,
                         COALESCE(ufi.karma, 0)            as po_karma,
-                        COALESCE(ufi.followers_count, 0)     as po_followers_count,
-                        COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
-                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count,
+                        COALESCE(ufi.subscribers_count, 0)     as po_subscribers_count,
+                        COALESCE(ufi.user_subscribes_count, 0)  as po_user_subscribes_count,
+                        COALESCE(ufi.group_subscribes_count, 0) as po_group_subscribes_count,
                         FALSE as po_is_subscribed,
                         TRUE as po_is_me
                  FROM users.users u
@@ -160,7 +156,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Подписан ли userId На username
-CREATE OR REPLACE FUNCTION users.is_user_follows(p_user_id UUID, p_target_username TEXT)
+CREATE OR REPLACE FUNCTION users.is_user_subscribed(p_user_id UUID, p_target_username TEXT)
     RETURNS BOOLEAN
 AS
 $$
@@ -168,7 +164,7 @@ BEGIN
     RETURN EXISTS (
         SELECT 1
         FROM users.users tu
-                 JOIN users.user_follow uf ON tu.id = uf.to_user_id AND uf.from_user_id = p_user_id
+                 JOIN users.user_subscribe uf ON tu.id = uf.to_user_id AND uf.from_user_id = p_user_id
         WHERE tu.username = p_target_username
           AND tu.deleted_at IS NULL
           AND uf.deleted_at IS NULL
@@ -176,7 +172,8 @@ BEGIN
 END;
 $$ language plpgsql;
 
-CREATE OR REPLACE FUNCTION users.get_user_follows(
+
+CREATE OR REPLACE FUNCTION users.get_user_subscribes(
     p_username TEXT,
     p_limit INT DEFAULT 20,
     p_last_created_at TIMESTAMPTZ DEFAULT NULL,
@@ -201,7 +198,7 @@ BEGIN
                             WHEN p_my_user_id IS NULL THEN FALSE
                             ELSE EXISTS(
                                 SELECT 1
-                                FROM users.user_follow muf
+                                FROM users.user_subscribe muf
                                 WHERE muf.from_user_id = p_my_user_id
                                   AND muf.to_user_id = u.id
                                   AND muf.deleted_at IS NULL
@@ -209,7 +206,7 @@ BEGIN
                         END,
                         uf.created_at
                  FROM users.users tu
-                          JOIN users.user_follow uf on tu.id = uf.from_user_id
+                          JOIN users.user_subscribe uf on tu.id = uf.from_user_id
                           JOIN users.users u ON u.id = uf.to_user_id
                           LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  WHERE tu.username = p_username
@@ -227,7 +224,8 @@ END;
 $$ language plpgsql;
 
 
-CREATE OR REPLACE FUNCTION users.get_user_followers(
+
+CREATE OR REPLACE FUNCTION users.get_user_subscribers(
     p_username TEXT,
     p_limit INT DEFAULT 20,
     p_last_created_at TIMESTAMPTZ DEFAULT NULL,
@@ -257,12 +255,12 @@ BEGIN
                         ufi.avatar_url,
                         CASE
                             WHEN p_my_user_id IS NULL THEN FALSE
-                            ELSE EXISTS(select 1 from users.user_follow uf1 where uf1.from_user_id = p_my_user_id
+                            ELSE EXISTS(select 1 from users.user_subscribe uf1 where uf1.from_user_id = p_my_user_id
                                                                          AND uf1.to_user_id = u.id
                                                                          AND uf1.deleted_at IS NULL)
                         END,
                         uf.created_at
-                 FROM users.user_follow uf
+                 FROM users.user_subscribe uf
                           JOIN users.users u ON u.id = uf.from_user_id
                           LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  WHERE uf.to_user_id = target_user_id 
@@ -280,7 +278,7 @@ $$ language plpgsql;
 
 
 
-CREATE OR REPLACE FUNCTION users.get_user_group_follows(
+CREATE OR REPLACE FUNCTION users.get_user_group_subscribes(
     p_username TEXT,
     p_limit INT DEFAULT 20,
     p_last_created_at TIMESTAMPTZ DEFAULT NULL,
@@ -297,7 +295,7 @@ BEGIN
     RETURN QUERY SELECT g.alias,
                         gf.created_at
                  FROM users.users tu
-                          JOIN users.group_follow gf on tu.id = gf.from_user_id
+                          JOIN users.group_subscribe gf on tu.id = gf.from_user_id
                           JOIN groups.groups g ON g.id = gf.group_id
                  WHERE tu.username = p_username
                    AND tu.deleted_at IS NULL
@@ -314,7 +312,8 @@ END;
 $$ language plpgsql;
 
 
-CREATE OR REPLACE FUNCTION users.add_follow_user(p_from_user_id UUID, p_to_username TEXT) RETURNS VOID as
+
+CREATE OR REPLACE FUNCTION users.add_user_subscribe(p_from_user_id UUID, p_to_username TEXT) RETURNS VOID as
 $$
 DECLARE
     target_user_id UUID;
@@ -324,27 +323,28 @@ BEGIN
         RAISE EXCEPTION 'Target user not found';
     END IF;
     IF p_from_user_id = target_user_id THEN
-        RAISE EXCEPTION 'User cannot follow themselves';
+        RAISE EXCEPTION 'User cannot subscribe to themselves';
     END IF;
 
-    INSERT INTO users.user_follow (from_user_id, to_user_id)
+    INSERT INTO users.user_subscribe (from_user_id, to_user_id)
     VALUES (p_from_user_id, target_user_id)
     ON CONFLICT DO NOTHING;
 
     IF FOUND THEN
-        INSERT INTO users.profile_info AS pi (user_id, user_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, user_subscribes_count)
         VALUES (p_from_user_id, 1)
-        ON CONFLICT (user_id) DO UPDATE SET user_follows_count = pi.user_follows_count + 1;
+        ON CONFLICT (user_id) DO UPDATE SET user_subscribes_count = pi.user_subscribes_count + 1;
 
-        INSERT INTO users.profile_info AS pi (user_id, followers_count)
+        INSERT INTO users.profile_info AS pi (user_id, subscribers_count)
         VALUES (target_user_id, 1)
-        ON CONFLICT (user_id) DO UPDATE SET followers_count = pi.followers_count + 1;
+        ON CONFLICT (user_id) DO UPDATE SET subscribers_count = pi.subscribers_count + 1;
     END IF;
 END;
 $$
     LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION users.remove_follow_user(p_from_user_id UUID, p_to_username TEXT) RETURNS VOID as
+
+CREATE OR REPLACE FUNCTION users.remove_user_subscribe(p_from_user_id UUID, p_to_username TEXT) RETURNS VOID as
 $$
 DECLARE
     target_user_id UUID;
@@ -354,21 +354,22 @@ BEGIN
         RAISE EXCEPTION 'Target user not found';
     END IF;
 
-    DELETE FROM users.user_follow uf WHERE uf.from_user_id = p_from_user_id AND uf.to_user_id = target_user_id;
+    DELETE FROM users.user_subscribe uf WHERE uf.from_user_id = p_from_user_id AND uf.to_user_id = target_user_id;
     IF FOUND THEN
-        INSERT INTO users.profile_info AS pi (user_id, user_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, user_subscribes_count)
         VALUES (p_from_user_id, 0)
-        ON CONFLICT (user_id) DO UPDATE SET user_follows_count = GREATEST(pi.user_follows_count - 1, 0);
+        ON CONFLICT (user_id) DO UPDATE SET user_subscribes_count = GREATEST(pi.user_subscribes_count - 1, 0);
 
-        INSERT INTO users.profile_info AS pi (user_id, followers_count)
+        INSERT INTO users.profile_info AS pi (user_id, subscribers_count)
         VALUES (target_user_id, 0)
-        ON CONFLICT (user_id) DO UPDATE SET followers_count = GREATEST(pi.followers_count - 1, 0);
+        ON CONFLICT (user_id) DO UPDATE SET subscribers_count = GREATEST(pi.subscribers_count - 1, 0);
     END IF;
 END;
 $$
     LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION users.add_follow_group(p_from_user_id UUID, p_target_group_alias TEXT) RETURNS VOID as
+
+CREATE OR REPLACE FUNCTION users.add_group_subscribe(p_from_user_id UUID, p_target_group_alias TEXT) RETURNS VOID as
 $$
 DECLARE
     target_group_id UUID;
@@ -378,24 +379,25 @@ BEGIN
         RAISE EXCEPTION 'Target group not found';
     END IF;
 
-    INSERT INTO users.group_follow (from_user_id, group_id)
+    INSERT INTO users.group_subscribe (from_user_id, group_id)
     VALUES (p_from_user_id, target_group_id)
     ON CONFLICT DO NOTHING;
     IF FOUND THEN
-        INSERT INTO users.profile_info AS pi (user_id, group_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, group_subscribes_count)
         VALUES (p_from_user_id, 1)
-        ON CONFLICT (user_id) DO UPDATE SET group_follows_count = pi.group_follows_count + 1;
+        ON CONFLICT (user_id) DO UPDATE SET group_subscribes_count = pi.group_subscribes_count + 1;
 
-        INSERT INTO groups.group_info AS gi (group_id, followers_count)
+        INSERT INTO groups.group_info AS gi (group_id, subscribers_count)
         VALUES (target_group_id, 1)
-        ON CONFLICT (group_id) DO UPDATE SET followers_count = gi.followers_count + 1;
+        ON CONFLICT (group_id) DO UPDATE SET subscribers_count = gi.subscribers_count + 1;
     END IF;
 END;
 $$
     LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION users.remove_follow_group(p_from_user_id UUID, p_target_group_alias TEXT) RETURNS VOID as
+
+CREATE OR REPLACE FUNCTION users.remove_group_subscribe(p_from_user_id UUID, p_target_group_alias TEXT) RETURNS VOID as
 $$
 DECLARE
     target_group_id UUID;
@@ -405,17 +407,17 @@ BEGIN
         RAISE EXCEPTION 'Target group not found';
     END IF;
 
-    DELETE FROM users.group_follow gf WHERE gf.from_user_id = p_from_user_id AND gf.group_id = target_group_id;
+    DELETE FROM users.group_subscribe gf WHERE gf.from_user_id = p_from_user_id AND gf.group_id = target_group_id;
     IF FOUND THEN
-        INSERT INTO users.profile_info AS pi (user_id, group_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, group_subscribes_count)
         VALUES (p_from_user_id, 0)
-        ON CONFLICT (user_id) DO UPDATE SET group_follows_count = GREATEST(pi.group_follows_count - 1, 0);
+        ON CONFLICT (user_id) DO UPDATE SET group_subscribes_count = GREATEST(pi.group_subscribes_count - 1, 0);
 
-        INSERT INTO groups.group_info AS gi (group_id, followers_count)
+        INSERT INTO groups.group_info AS gi (group_id, subscribers_count)
         VALUES (target_group_id, 0)
-        ON CONFLICT (group_id) DO UPDATE SET followers_count = GREATEST(gi.followers_count - 1, 0);
+        ON CONFLICT (group_id) DO UPDATE SET subscribers_count = GREATEST(gi.subscribers_count - 1, 0);
     ELSE
-        RAISE EXCEPTION 'Follow group info not found';
+        RAISE EXCEPTION 'Group subscribe info not found';
     END IF;
 END;
 $$
@@ -619,7 +621,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION groups.get_group_followers(p_alias TEXT)
+
+CREATE OR REPLACE FUNCTION groups.get_group_subscribers(p_alias TEXT)
     RETURNS TABLE
             (
                 po_username TEXT
@@ -629,7 +632,7 @@ $$
 BEGIN
     RETURN QUERY SELECT u.username
                  FROM groups.groups g
-                          JOIN users.group_follow uf on g.id = uf.group_id
+                          JOIN users.group_subscribe uf on g.id = uf.group_id
                           JOIN users.users u ON u.id = uf.from_user_id
                  WHERE g.alias = p_alias
                  ORDER BY uf.created_at DESC;
