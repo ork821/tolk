@@ -229,6 +229,29 @@ export async function getUserPosts(
     return data;
 }
 
+export async function getFeed(
+    {nextPageToken}: {nextPageToken: string | null}
+): Promise<PagedPostsDto> {
+    const {data, error} = await client.GET("/v1/feed", {
+        params: {
+            path: {
+                version: "1",
+            },
+            query: nextPageToken ? {next_page_token: nextPageToken} : undefined,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to load feed");
+    }
+
+    return data;
+}
+
 export async function getUserReplies(
     username: string,
     {nextPageToken}: {nextPageToken: string | null}

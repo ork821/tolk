@@ -72,18 +72,36 @@ public class UsersService(DatabaseContext databaseContext)
         return replies.ToArray();
     }
 
-    public async Task<GetUserByUsernameDto?> GetUserByUsername(string username)
+    public async Task<GetUserByUsernameDto?> GetUserByUsername(string username, Guid? userId)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_by_username(@username)");
+            .CreateCommand(@"SELECT * FROM users.get_user_by_username(@username, @userId)");
 
         command.Parameters.AddWithValue("@username", username);
+        command.Parameters.AddWithValue("@userId", userId != null ? userId : DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
         if (await reader.ReadAsync()) return GetUserByUsernameDto.FromReader(reader);
 
         return null;
+    }
+
+    public async Task<UserMetadataDto[]> GetUsersMetadata(string[] usernames, Guid? userId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM users.get_users_metadata(@usernames, @userId)");
+
+        command.Parameters.AddWithValue("@usernames", usernames);
+        command.Parameters.AddWithValue("@userId", userId != null ? userId : DBNull.Value);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var usersMetadata = new List<UserMetadataDto>();
+
+        while (await reader.ReadAsync()) usersMetadata.Add(UserMetadataDto.FromReader(reader));
+
+        return usersMetadata.ToArray();
     }
 
     public async Task<GetUserByUsernameDto?> GetUserById(Guid userId)
@@ -204,7 +222,7 @@ public class UsersService(DatabaseContext databaseContext)
         }
         catch (Exception e)
         {
-            Console.WriteLine("Follow failed", e);
+            Console.WriteLine("Follow failed: " + e.Message);
             return false;
         }
     }

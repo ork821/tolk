@@ -1,12 +1,13 @@
 "use client";
 
 import {Suspense, useEffect, useMemo, useState} from "react";
-import {useSearchParams} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import {Loader2} from "lucide-react";
-import {PostCard, PostCardProps} from "@/components/post-card";
+import {internalNavigationStorageKey, PostCard, PostCardProps} from "@/components/post-card";
 import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
 function SearchResults() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const query = searchParams.get("query") || "";
     const [results, setResults] = useState<PostCardProps[]>([]);
@@ -57,6 +58,10 @@ function SearchResults() {
                             key={post.id}
                             post={post}
                             metadata={metadataByPostId[post.id]}
+                            onClick={() => {
+                                window.sessionStorage.setItem(internalNavigationStorageKey, "1");
+                                router.push(`/p/${post.id}`);
+                            }}
                         />
                     ))}
                 </div>

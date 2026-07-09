@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Asp.Versioning;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using TolkApi.DTO;
 using TolkApi.Users.DTO;
@@ -103,11 +104,26 @@ public class UsersController(UsersService usersService) : ControllerBase
     [HttpGet("{username}")]
     [ProducesResponseType(typeof(GetUserByUsernameDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetUserProfileInfo(string username)
+    public async Task<IActionResult> GetUserProfileInfo(string username, [FromUserId] Guid? userId)
     {
-        var userInfo = await usersService.GetUserByUsername(username);
+        var userInfo = await usersService.GetUserByUsername(username, userId);
         if (userInfo == null) return NotFound();
         return Ok(userInfo);
+    }
+
+    [HttpPost("metadata")]
+    [ProducesResponseType(typeof(UserMetadataDto[]), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetUsersMetadata(
+        [FromBody] GetUsersMetadataRequestDto body,
+        [FromUserId] Guid? userId)
+    {
+        if (body.Usernames.Length == 0) return Ok(Array.Empty<UserMetadataDto>());
+
+        var metadata = await usersService.GetUsersMetadata(
+            body.Usernames.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            userId);
+
+        return Ok(metadata);
     }
 
     // [IsAuthenticated]
@@ -123,22 +139,38 @@ public class UsersController(UsersService usersService) : ControllerBase
     [HttpPost("{username}/follow")]
     [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> FollowUser([FromRoute] string username,
-        [FromClaim(ClaimTypes.NameIdentifier)] string userId)
+        [FromUserId] Guid? userId)
     {
-        var user = Guid.Parse(userId);
-        var result = await usersService.FollowUser(user, username);
-        return Ok(new OperationResultDto(result));
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+        var result = await usersService.FollowUser((Guid)userId, username);
+        if (result)
+        {
+            return Created();
+        }
+
+        return BadRequest();
     }
 
     [IsAuthenticated]
     [HttpDelete("{username}/follow")]
     [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> UnfollowUser([FromRoute] string username,
-        [FromClaim(ClaimTypes.NameIdentifier)] string userId)
+        [FromUserId] Guid? userId)
     {
-        var user = Guid.Parse(userId);
-        var result = await usersService.UnfollowUser(user, username);
-        return Ok(new OperationResultDto(result));
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+        var result = await usersService.UnfollowUser((Guid)userId, username);
+        if (result)
+        {
+            return Created();
+        }
+
+        return BadRequest();
     }
 
     [HttpGet("{username}/follows/users")]

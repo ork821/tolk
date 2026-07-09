@@ -7,6 +7,7 @@ import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {Check, ExternalLink, Flame, MessageCircle, Pencil, Repeat2, Trash2, X} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardFooter, CardHeader} from "@/components/ui/card";
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import {client, type Post, type PostMetadataByPostId, type PostMetadataDto} from "@/lib/api";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import {UserAvatar} from "@/components/user-avatar";
@@ -14,16 +15,18 @@ import {UserAvatar} from "@/components/user-avatar";
 export type PostCardProps = Post;
 
 const defaultReaction = "fire";
-const internalNavigationStorageKey = "tolk.hasInternalNavigation";
+export const internalNavigationStorageKey = "tolk.hasInternalNavigation";
 
 export function PostCard({
     post,
     showAvatar = true,
     metadata,
+    onClick,
 }: {
     post: PostCardProps;
     showAvatar?: boolean;
     metadata?: PostMetadataDto;
+    onClick?: () => void;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -255,15 +258,15 @@ export function PostCard({
         return null;
     }
 
-    const handleOpenPost = () => {
-        window.sessionStorage.setItem(internalNavigationStorageKey, "1");
-        router.push(`/p/${post.id}`);
-    };
+    const isClickable = !!onClick;
 
     return (
         <Card
-            className="w-full border rounded-2xl sm:rounded-3xl hover:bg-accent/5 transition-all duration-300 cursor-pointer group z-20 text-left shadow-sm hover:shadow-md border-border/50"
-            onClick={handleOpenPost}
+            className={cn(
+                "w-full border rounded-2xl sm:rounded-3xl transition-all duration-300 group z-20 text-left shadow-sm border-border/50",
+                isClickable && "cursor-pointer hover:bg-accent/5 hover:shadow-md"
+            )}
+            onClick={onClick}
         >
             <CardHeader className="flex flex-row items-start gap-4 p-4 pb-2">
                 {showAvatar && (
@@ -291,9 +294,15 @@ export function PostCard({
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-muted-foreground text-sm whitespace-nowrap">
-                                {new Date(post.createdAt).toLocaleDateString()}
-                            </span>
+                            <div className="flex flex-col">
+                                <span className="text-muted-foreground text-sm whitespace-nowrap">
+                                    {new Date(post.createdAt).toLocaleDateString()}
+                                </span>
+
+                                {post.updatedAt && (
+                                    <EditedAtLabel updatedAt={post.updatedAt} />
+                                )}
+                            </div>
 
                             {canEdit && (
                                 <Button
@@ -409,5 +418,25 @@ export function PostCard({
                 </div>
             </CardHeader>
         </Card>
+    );
+}
+
+function EditedAtLabel({updatedAt}: {updatedAt: string}) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span
+                        className="text-muted-foreground text-sm whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        изменено
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                    {new Date(updatedAt).toLocaleString()}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }

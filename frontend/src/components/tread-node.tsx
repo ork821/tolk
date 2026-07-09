@@ -5,6 +5,7 @@ import Link from "next/link";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button} from "@/components/ui/button";
 import {ExternalLink, Flame, MessageCircle, Repeat2, Skull} from "lucide-react";
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import {cn, formatCompactNumber} from "@/lib/utils";
 import type {PostCardProps} from "@/components/post-card";
 import {client, type GetReactionsDto} from "@/lib/api";
@@ -167,9 +168,18 @@ function ActiveThreadNode({post, isLast = false, initialReactions}: ThreadNodePr
                         >
                             {post.author.displayName}
                         </Link>
-                        <span className="truncate text-sm text-muted-foreground">@{post.author.username}</span>
+                        <Link
+                            href={`/u/${post.author.username}`}
+                            className="truncate text-sm text-muted-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            @{post.author.username}
+                        </Link>
                         <span className="text-sm text-muted-foreground">·</span>
                         <span className="text-sm text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</span>
+                        {post.updatedAt && (
+                            <EditedAtLabel updatedAt={post.updatedAt} />
+                        )}
                     </div>
                 </div>
 
@@ -291,5 +301,22 @@ function ActionIcon({icon: Icon, count, hoverClass, iconClass, onClick}: any) {
                 </span>
             )}
         </div>
+    );
+}
+
+function EditedAtLabel({updatedAt}: {updatedAt: string}) {
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        · изменено
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                    {new Date(updatedAt).toLocaleString()}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }

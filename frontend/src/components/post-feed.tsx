@@ -1,11 +1,12 @@
 ﻿"use client";
 
 import {useEffect, useMemo} from "react";
+import {useRouter} from "next/navigation";
 import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 
 import {PostCardSkeleton} from "@/components/post-card-skeleton";
-import {PostCard} from "@/components/post-card";
+import {internalNavigationStorageKey, PostCard} from "@/components/post-card";
 import type {PostsPageResponse} from "@/lib/api";
 import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
@@ -17,6 +18,7 @@ interface PostFeedProps {
 }
 
 export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
+    const router = useRouter();
     // Настраиваем Intersection Observer для якоря внизу
     const { ref, inView } = useInView({
         rootMargin: "600px", // Начинаем грузить заранее
@@ -73,6 +75,10 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
                     key={post.id}
                     post={post}
                     metadata={metadataByPostId[post.id]}
+                    onClick={() => {
+                        window.sessionStorage.setItem(internalNavigationStorageKey, "1");
+                        router.push(`/p/${post.id}`);
+                    }}
                 />
             ))}
 

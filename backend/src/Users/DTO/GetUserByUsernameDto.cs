@@ -20,7 +20,11 @@ public record GetUserByUsernameDto(
     [property: Required]
     long FollowUserCount,
     [property: Required]
-    long FollowGroupsCount
+    long FollowGroupsCount,
+    [property: Required]
+    bool IsSubscribed,
+    [property: Required]
+    bool IsMe
 )
 {
     public static GetUserByUsernameDto FromReader(NpgsqlDataReader reader)
@@ -35,7 +39,9 @@ public record GetUserByUsernameDto(
             reader.GetInt64(6),
             reader.GetInt64(7),
             reader.GetInt64(8),
-            reader.GetInt64(9)
+            reader.GetInt64(9),
+            reader.GetBoolean(10),
+            reader.GetBoolean(11)
         );
     }
 }

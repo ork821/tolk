@@ -31,7 +31,10 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION users.get_user_by_username(p_username TEXT)
+DROP FUNCTION IF EXISTS users.get_user_by_username(TEXT);
+DROP FUNCTION IF EXISTS users.get_user_by_username(TEXT, UUID);
+
+CREATE OR REPLACE FUNCTION users.get_user_by_username(p_username TEXT, p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
             (
                 po_user_id              UUID,
@@ -43,7 +46,9 @@ CREATE OR REPLACE FUNCTION users.get_user_by_username(p_username TEXT)
                 po_karma                BIGINT,
                 po_followers_count      BIGINT,
                 po_user_follows_count   BIGINT,
-                po_groups_follows_count BIGINT
+                po_groups_follows_count BIGINT,
+                po_is_subscribed        BOOLEAN,
+                po_is_me                BOOLEAN
             )
 AS
 $$
@@ -57,14 +62,63 @@ BEGIN
                         COALESCE(ufi.karma, 0)            as po_karma,
                         COALESCE(ufi.followers_count, 0)     as po_followers_count,
                         COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
-                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count
+                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count,
+                        CASE
+                            WHEN p_user_id IS NULL THEN FALSE
+                            ELSE EXISTS (
+                                SELECT 1
+                                FROM users.user_follow uf
+                                WHERE uf.from_user_id = p_user_id
+                                  AND uf.to_user_id = u.id
+                                  AND uf.deleted_at IS NULL
+                            )
+                        END as po_is_subscribed,
+                        CASE
+                            WHEN p_user_id IS NULL THEN FALSE
+                            ELSE p_user_id = u.id
+                        END as po_is_me
                  FROM users.users u
                           LEFT JOIN users.profile_info as ufi
                                     ON u.id = ufi.user_id
                  WHERE u.username = p_username
-                   AND deleted_at IS NULL;
+                   AND u.deleted_at IS NULL;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP FUNCTION IF EXISTS users.get_users_metadata(TEXT[], UUID);
+
+CREATE OR REPLACE FUNCTION users.get_users_metadata(p_usernames TEXT[], p_user_id UUID DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_username      TEXT,
+                po_is_subscribed BOOLEAN,
+                po_is_me         BOOLEAN
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT u.username as po_username,
+                        CASE
+                            WHEN p_user_id IS NULL THEN FALSE
+                            ELSE EXISTS (
+                                SELECT 1
+                                FROM users.user_follow uf
+                                WHERE uf.from_user_id = p_user_id
+                                  AND uf.to_user_id = u.id
+                                  AND uf.deleted_at IS NULL
+                            )
+                        END as po_is_subscribed,
+                        CASE
+                            WHEN p_user_id IS NULL THEN FALSE
+                            ELSE p_user_id = u.id
+                        END as po_is_me
+                 FROM users.users u
+                 WHERE u.username = ANY (p_usernames)
+                   AND u.deleted_at IS NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP FUNCTION IF EXISTS users.get_user_by_id(UUID);
 
 CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
     RETURNS TABLE
@@ -78,7 +132,9 @@ CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
                 po_karma                BIGINT,
                 po_followers_count      BIGINT,
                 po_user_follows_count   BIGINT,
-                po_groups_follows_count BIGINT
+                po_groups_follows_count BIGINT,
+                po_is_subscribed        BOOLEAN,
+                po_is_me                BOOLEAN
             )
 AS
 $$
@@ -92,7 +148,9 @@ BEGIN
                         COALESCE(ufi.karma, 0)            as po_karma,
                         COALESCE(ufi.followers_count, 0)     as po_followers_count,
                         COALESCE(ufi.user_follows_count, 0)  as po_user_follows_count,
-                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count
+                        COALESCE(ufi.group_follows_count, 0) as po_groups_follows_count,
+                        FALSE as po_is_subscribed,
+                        TRUE as po_is_me
                  FROM users.users u
                           LEFT JOIN users.profile_info as ufi
                                     ON u.id = ufi.user_id
@@ -274,13 +332,13 @@ BEGIN
     ON CONFLICT DO NOTHING;
 
     IF FOUND THEN
-        INSERT INTO users.profile_info (user_id, user_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, user_follows_count)
         VALUES (p_from_user_id, 1)
-        ON CONFLICT (user_id) DO UPDATE SET user_follows_count = user_follows_count + 1;
+        ON CONFLICT (user_id) DO UPDATE SET user_follows_count = pi.user_follows_count + 1;
 
-        INSERT INTO users.profile_info (user_id, followers_count)
+        INSERT INTO users.profile_info AS pi (user_id, followers_count)
         VALUES (target_user_id, 1)
-        ON CONFLICT (user_id) DO UPDATE SET followers_count = followers_count + 1;
+        ON CONFLICT (user_id) DO UPDATE SET followers_count = pi.followers_count + 1;
     END IF;
 END;
 $$
@@ -298,13 +356,13 @@ BEGIN
 
     DELETE FROM users.user_follow uf WHERE uf.from_user_id = p_from_user_id AND uf.to_user_id = target_user_id;
     IF FOUND THEN
-        INSERT INTO users.profile_info (user_id, user_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, user_follows_count)
         VALUES (p_from_user_id, 0)
-        ON CONFLICT (user_id) DO UPDATE SET user_follows_count = GREATEST(user_follows_count - 1, 0);
+        ON CONFLICT (user_id) DO UPDATE SET user_follows_count = GREATEST(pi.user_follows_count - 1, 0);
 
-        INSERT INTO users.profile_info (user_id, followers_count)
+        INSERT INTO users.profile_info AS pi (user_id, followers_count)
         VALUES (target_user_id, 0)
-        ON CONFLICT (user_id) DO UPDATE SET followers_count = GREATEST(followers_count - 1, 0);
+        ON CONFLICT (user_id) DO UPDATE SET followers_count = GREATEST(pi.followers_count - 1, 0);
     END IF;
 END;
 $$
@@ -324,13 +382,13 @@ BEGIN
     VALUES (p_from_user_id, target_group_id)
     ON CONFLICT DO NOTHING;
     IF FOUND THEN
-        INSERT INTO users.profile_info (user_id, group_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, group_follows_count)
         VALUES (p_from_user_id, 1)
-        ON CONFLICT (user_id) DO UPDATE SET group_follows_count = group_follows_count + 1;
+        ON CONFLICT (user_id) DO UPDATE SET group_follows_count = pi.group_follows_count + 1;
 
-        INSERT INTO groups.group_info (group_id, followers_count)
+        INSERT INTO groups.group_info AS gi (group_id, followers_count)
         VALUES (target_group_id, 1)
-        ON CONFLICT (group_id) DO UPDATE SET followers_count = followers_count + 1;
+        ON CONFLICT (group_id) DO UPDATE SET followers_count = gi.followers_count + 1;
     END IF;
 END;
 $$
@@ -349,13 +407,13 @@ BEGIN
 
     DELETE FROM users.group_follow gf WHERE gf.from_user_id = p_from_user_id AND gf.group_id = target_group_id;
     IF FOUND THEN
-        INSERT INTO users.profile_info (user_id, group_follows_count)
+        INSERT INTO users.profile_info AS pi (user_id, group_follows_count)
         VALUES (p_from_user_id, 0)
-        ON CONFLICT (user_id) DO UPDATE SET group_follows_count = GREATEST(group_follows_count - 1, 0);
+        ON CONFLICT (user_id) DO UPDATE SET group_follows_count = GREATEST(pi.group_follows_count - 1, 0);
 
-        INSERT INTO groups.group_info (group_id, followers_count)
+        INSERT INTO groups.group_info AS gi (group_id, followers_count)
         VALUES (target_group_id, 0)
-        ON CONFLICT (group_id) DO UPDATE SET followers_count = GREATEST(followers_count - 1, 0);
+        ON CONFLICT (group_id) DO UPDATE SET followers_count = GREATEST(gi.followers_count - 1, 0);
     ELSE
         RAISE EXCEPTION 'Follow group info not found';
     END IF;
@@ -673,9 +731,12 @@ AS
 $$
 BEGIN
     PERFORM 1
-    FROM main.user_posts
-    WHERE user_id = p_user_id
-      AND post_id = p_id;
+    FROM main.user_posts up
+             JOIN main.posts p ON p.id = up.post_id
+    WHERE up.user_id = p_user_id
+      AND up.post_id = p_id
+      AND p.deleted_at IS NULL
+      AND p.created_at >= now() - interval '24 hours';
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Update Permission denied';
@@ -685,9 +746,11 @@ BEGIN
         SET title = p_title,
             content_type = p_content_type,
             content = p_content,
-            comments_enabled = p_comments_enabled
+            comments_enabled = p_comments_enabled,
+            updated_at = now()
         WHERE p.id = p_id
             AND p.deleted_at IS NULL
+            AND p.created_at >= now() - interval '24 hours'
         RETURNING
             p.id,
             p.parent_post_id,
@@ -1426,7 +1489,10 @@ BEGIN
             SELECT DISTINCT unnest(p_post_ids) AS post_id
         )
         SELECT rp.post_id,
-               p.id IS NOT NULL AND p_user_id IS NOT NULL AND up.user_id = p_user_id,
+               p.id IS NOT NULL
+                   AND p_user_id IS NOT NULL
+                   AND up.user_id = p_user_id
+                   AND p.created_at >= now() - interval '24 hours',
                p.id IS NOT NULL AND p_user_id IS NOT NULL AND up.user_id = p_user_id
         FROM requested_posts rp
                  LEFT JOIN main.posts p

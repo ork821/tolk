@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import {usePathname, useRouter} from "next/navigation";
-import {Bookmark, Home, LogOut, TrendingUp} from "lucide-react";
+import {Bookmark, Home, Info, LogOut, TrendingUp} from "lucide-react";
 import {cn} from "@/lib/utils";
 import {useAuth} from "@/hooks/use-auth";
 import {Skeleton} from "@/components/ui/skeleton";
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
     { icon: Home, label: "Главная", href: "/" },
     { icon: TrendingUp, label: "Тренды", href: "/trends" },
     { icon: Bookmark, label: "Закладки", href: "/bookmarks" },
+    { icon: Info, label: "О нас", href: "/about" },
 ];
 
 export function Sidebar() {
