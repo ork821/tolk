@@ -5,7 +5,7 @@ import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
 import {BackButton} from "@/components/back-button";
 import {FollowList, FollowListSkeleton} from "@/components/follow-list";
-import {getUserFollowers} from "@/lib/api";
+import {getUserSubscribers} from "@/lib/api";
 
 export default function FollowersPage({params}: {params: Promise<{ username: string }>}) {
     const {username} = use(params);
@@ -18,7 +18,7 @@ export default function FollowersPage({params}: {params: Promise<{ username: str
         status,
     } = useInfiniteQuery({
         queryKey: ["user-connections", username, "followers"],
-        queryFn: ({pageParam}) => getUserFollowers(username, {nextPageToken: pageParam}),
+        queryFn: ({pageParam}) => getUserSubscribers(username, {nextPageToken: pageParam}),
         initialPageParam: null as string | null,
         getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
     });
@@ -29,7 +29,7 @@ export default function FollowersPage({params}: {params: Promise<{ username: str
         }
     }, [fetchNextPage, hasNextPage, inView, isFetchingNextPage]);
 
-    const users = data?.pages.flatMap((page) => page.followers) ?? [];
+    const users = data?.pages.flatMap((page) => page.subscribers) ?? [];
 
     return (
         <div className="flex min-h-screen flex-col gap-5 pb-20 mt-6">

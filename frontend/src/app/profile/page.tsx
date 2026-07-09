@@ -43,8 +43,8 @@ export default function MyProfilePage() {
         avatarUrl: user.avatarUrl,
         description: user.description ?? "",
         stats: {
-            following: user.followUserCount,
-            followers: user.followersCount,
+            following: user.userSubscribesCount,
+            followers: user.subscribersCount,
         },
     };
 

@@ -59,15 +59,15 @@ export default function UserProfilePage({params}: {params: Promise<{ username: s
         avatarUrl: profile.avatarUrl,
         description: profile.description ?? "",
         stats: {
-            following: profile.followUserCount,
-            followers: profile.followersCount,
+            following: profile.userSubscribesCount,
+            followers: profile.subscribersCount,
         },
     };
     const isCurrentUser = currentUser?.username === profile.username;
 
     return (
         <div className="flex flex-col w-full min-h-screen bg-background pb-20">
-            <ProfileHeader user={profileData} isCurrentUser={isCurrentUser} />
+            <ProfileHeader user={profileData} isCurrentUser={isCurrentUser} isSubscribedProp={profile.isSubscribed}/>
 
             <Tabs defaultValue="posts" className="w-full mt-6">
                 <TabsList className="w-full h-12 justify-between rounded-xl border-b bg-transparent p-0 px-2">

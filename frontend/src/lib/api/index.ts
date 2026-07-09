@@ -108,16 +108,14 @@ export type CreateUpdateCommentDto = ApiSchemas["CreateUpdateCommentDto"];
 export type CreateUpdatePostDto = ApiSchemas["CreateUpdatePostDto"];
 export type GetReactionsDto = ApiSchemas["GetReactionsDto"];
 export type GetUserByUsernameDto = ApiSchemas["GetUserByUsernameDto"];
-export type GetUserFollowersDto = ApiSchemas["GetUserFollowersDto"];
-export type GetUserFollowingGroupsDto = ApiSchemas["GetUserFollowingGroupsDto"];
-export type GetUserFollowsDto = ApiSchemas["GetUserFollowsDto"];
+export type GetUserSubscribersDto = ApiSchemas["GetUserSubscribersDto"];
+export type GetUserSubscribesDto = ApiSchemas["GetUserSubscribesDto"];
 export type OAuthLoginDto = ApiSchemas["OAuthLoginDto"];
 export type OperationResultDto = ApiSchemas["OperationResultDto"];
 export type PagedCommentsDto = ApiSchemas["PagedCommentsDto"];
 export type PagedPostsDto = ApiSchemas["PagedPostsDto"];
-export type PagedUserFollowersDto = ApiSchemas["PagedUserFollowersDto"];
-export type PagedUserFollowsDto = ApiSchemas["PagedUserFollowsDto"];
-export type PagedUserGroupFollowsDto = ApiSchemas["PagedUserGroupFollowsDto"];
+export type PagedUserSubscribersDto = ApiSchemas["PagedUserSubscribersDto"];
+export type PagedUserSubscribesDto = ApiSchemas["PagedUserSubscribesDto"];
 export type PostMetadataDto = ApiSchemas["PostMetadataDto"];
 export type PostPermissionsDto = ApiSchemas["PostPermissionsDto"];
 export type PostDto = ApiSchemas["PostDto"];
@@ -140,7 +138,7 @@ export type PostsPageResponse = PagedPostsDto;
 export type CommentsPageResponse = PagedCommentsDto;
 export type PostMetadataByPostId = Record<string, PostMetadataDto>;
 export type PostReactionsByPostId = Record<string, GetReactionsDto[]>;
-export type FollowListUser = (GetUserFollowsDto | GetUserFollowersDto) & {
+export type FollowListUser = (GetUserSubscribesDto | GetUserSubscribersDto) & {
     isSubscribed?: boolean;
 };
 
@@ -326,11 +324,11 @@ export async function getPostsMetadata(postIds: string[]): Promise<PostMetadataB
     return Object.fromEntries((data ?? []).map((item) => [item.id, item]));
 }
 
-export async function getUserFollows(
+export async function getUserSubscribes(
     username: string,
     {nextPageToken}: {nextPageToken: string | null}
-): Promise<PagedUserFollowsDto> {
-    const {data, error} = await client.GET("/v1/users/{username}/follows/users", {
+): Promise<PagedUserSubscribesDto> {
+    const {data, error} = await client.GET("/v1/users/{username}/subscribes/users", {
         params: {
             path: {
                 username,
@@ -351,11 +349,11 @@ export async function getUserFollows(
     return data;
 }
 
-export async function getUserFollowers(
+export async function getUserSubscribers(
     username: string,
     {nextPageToken}: {nextPageToken: string | null}
-): Promise<PagedUserFollowersDto> {
-    const {data, error} = await client.GET("/v1/users/{username}/followers", {
+): Promise<PagedUserSubscribersDto> {
+    const {data, error} = await client.GET("/v1/users/{username}/subscribers", {
         params: {
             path: {
                 username,
@@ -386,8 +384,8 @@ export async function setUserFollow(username: string, shouldFollow: boolean) {
         },
     };
     const {error} = shouldFollow
-        ? await client.POST("/v1/users/{username}/follow", request)
-        : await client.DELETE("/v1/users/{username}/follow", request);
+        ? await client.POST("/v1/users/{username}/subscribe", request)
+        : await client.DELETE("/v1/users/{username}/subscribe", request);
 
     if (error) {
         throw error;

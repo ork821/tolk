@@ -1420,7 +1420,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/users/{username}/follow": {
+    "/v1/users/metadata": {
         parameters: {
             query?: never;
             header?: never;
@@ -1431,9 +1431,53 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: {
-                    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"?: string;
+                query?: never;
+                header?: never;
+                path: {
+                    version: string;
                 };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json-patch+json": components["schemas"]["GetUsersMetadataRequestDto"];
+                    "application/json": components["schemas"]["GetUsersMetadataRequestDto"];
+                    "text/json": components["schemas"]["GetUsersMetadataRequestDto"];
+                    "application/*+json": components["schemas"]["GetUsersMetadataRequestDto"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserMetadataDto"][];
+                        "application/json": components["schemas"]["UserMetadataDto"][];
+                        "text/json": components["schemas"]["UserMetadataDto"][];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{username}/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
                 header?: never;
                 path: {
                     username: string;
@@ -1458,9 +1502,7 @@ export interface paths {
         };
         delete: {
             parameters: {
-                query?: {
-                    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"?: string;
-                };
+                query?: never;
                 header?: never;
                 path: {
                     username: string;
@@ -1488,7 +1530,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/users/{username}/follows/users": {
+    "/v1/users/{username}/subscribes/users": {
         parameters: {
             query?: never;
             header?: never;
@@ -1515,9 +1557,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["PagedUserFollowsDto"];
-                        "application/json": components["schemas"]["PagedUserFollowsDto"];
-                        "text/json": components["schemas"]["PagedUserFollowsDto"];
+                        "text/plain": components["schemas"]["PagedUserSubscribesDto"];
+                        "application/json": components["schemas"]["PagedUserSubscribesDto"];
+                        "text/json": components["schemas"]["PagedUserSubscribesDto"];
                     };
                 };
                 /** @description Bad Request */
@@ -1541,7 +1583,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/users/{username}/follows/groups": {
+    "/v1/users/{username}/subscribes/groups": {
         parameters: {
             query?: never;
             header?: never;
@@ -1568,9 +1610,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["PagedUserGroupFollowsDto"];
-                        "application/json": components["schemas"]["PagedUserGroupFollowsDto"];
-                        "text/json": components["schemas"]["PagedUserGroupFollowsDto"];
+                        "text/plain": components["schemas"]["PagedUserGroupSubscribesDto"];
+                        "application/json": components["schemas"]["PagedUserGroupSubscribesDto"];
+                        "text/json": components["schemas"]["PagedUserGroupSubscribesDto"];
                     };
                 };
                 /** @description Bad Request */
@@ -1594,7 +1636,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/users/{username}/followers": {
+    "/v1/users/{username}/subscribers": {
         parameters: {
             query?: never;
             header?: never;
@@ -1621,9 +1663,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["PagedUserFollowersDto"];
-                        "application/json": components["schemas"]["PagedUserFollowersDto"];
-                        "text/json": components["schemas"]["PagedUserFollowersDto"];
+                        "text/plain": components["schemas"]["PagedUserSubscribersDto"];
+                        "application/json": components["schemas"]["PagedUserSubscribersDto"];
+                        "text/json": components["schemas"]["PagedUserSubscribersDto"];
                     };
                 };
                 /** @description Bad Request */
@@ -1733,32 +1775,37 @@ export interface components {
             /** Format: int64 */
             karma: number;
             /** Format: int64 */
-            followersCount: number;
+            subscribersCount: number;
             /** Format: int64 */
-            followUserCount: number;
+            userSubscribesCount: number;
             /** Format: int64 */
-            followGroupsCount: number;
-        };
-        GetUserFollowersDto: {
-            username: string;
-            displayName: string;
-            avatarUrl?: string | null;
+            groupSubscribesCount: number;
             isSubscribed: boolean;
-            /** Format: date-time */
-            createdAt: string;
+            isMe: boolean;
         };
-        GetUserFollowingGroupsDto: {
+        GetUserGroupSubscribesDto: {
             alias: string;
             /** Format: date-time */
             createdAt: string;
         };
-        GetUserFollowsDto: {
+        GetUserSubscribersDto: {
             username: string;
             displayName: string;
             avatarUrl?: string | null;
             isSubscribed: boolean;
             /** Format: date-time */
             createdAt: string;
+        };
+        GetUserSubscribesDto: {
+            username: string;
+            displayName: string;
+            avatarUrl?: string | null;
+            isSubscribed: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        GetUsersMetadataRequestDto: {
+            usernames: string[];
         };
         OAuthLoginDto: {
             token: string;
@@ -1775,16 +1822,16 @@ export interface components {
             posts: components["schemas"]["PostDto"][];
             nextPageToken?: string | null;
         };
-        PagedUserFollowersDto: {
-            followers: components["schemas"]["GetUserFollowersDto"][];
+        PagedUserGroupSubscribesDto: {
+            groups: components["schemas"]["GetUserGroupSubscribesDto"][];
             nextPageToken?: string | null;
         };
-        PagedUserFollowsDto: {
-            follows: components["schemas"]["GetUserFollowsDto"][];
+        PagedUserSubscribersDto: {
+            subscribers: components["schemas"]["GetUserSubscribersDto"][];
             nextPageToken?: string | null;
         };
-        PagedUserGroupFollowsDto: {
-            groups: components["schemas"]["GetUserFollowingGroupsDto"][];
+        PagedUserSubscribesDto: {
+            subscribes: components["schemas"]["GetUserSubscribesDto"][];
             nextPageToken?: string | null;
         };
         PostDto: {
@@ -1844,6 +1891,11 @@ export interface components {
             title: string;
             type: components["schemas"]["ContentType"];
             content: string;
+        };
+        UserMetadataDto: {
+            username: string;
+            isSubscribed: boolean;
+            isMe: boolean;
         };
     };
     responses: never;

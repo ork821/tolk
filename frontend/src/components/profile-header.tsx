@@ -39,7 +39,7 @@ export function ProfileHeader({ user, isCurrentUser = false, isSubscribedProp = 
 
         try {
             if (nextSubscribed) {
-                await client.POST("/v1/users/{username}/follow", {
+                await client.POST("/v1/users/{username}/subscribe", {
                     params: {
                         path: {
                             username: user.username,
@@ -48,7 +48,7 @@ export function ProfileHeader({ user, isCurrentUser = false, isSubscribedProp = 
                     }
                 });
             } else {
-                await client.DELETE("/v1/users/{username}/follow", {
+                await client.DELETE("/v1/users/{username}/subscribe", {
                     params: {
                         path: {
                             username: user.username,
