@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Npgsql;
 
 namespace TolkApi.Users.DTO;
@@ -16,11 +16,11 @@ public record GetUserByUsernameDto(
     [property: Required]
     long Karma,
     [property: Required]
-    long FollowersCount,
+    long SubscribersCount,
     [property: Required]
-    long FollowUserCount,
+    long UserSubscribesCount,
     [property: Required]
-    long FollowGroupsCount,
+    long GroupSubscribesCount,
     [property: Required]
     bool IsSubscribed,
     [property: Required]

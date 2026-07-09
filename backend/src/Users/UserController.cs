@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -39,7 +39,7 @@ public class UsersController(UsersService usersService) : ControllerBase
         var nextToken = posts.Length <= PageSize
             ? null
             : CursorEncoder.Encode(postsPage.Last().CreatedAt, postsPage.Last().Id);
-        // Получение стены пользователя
+        // РџРѕР»СѓС‡РµРЅРёРµ СЃС‚РµРЅС‹ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
         return Ok(new PagedPostsDto(postsPage, nextToken));
     }
 
@@ -127,25 +127,25 @@ public class UsersController(UsersService usersService) : ControllerBase
     }
 
     // [IsAuthenticated]
-    // [HttpGet("{username}/follow")]
-    // public async Task<IActionResult> IsFollowing(string username, [FromClaim(ClaimTypes.NameIdentifier)] string userId)
+    // [HttpGet("{username}/subscribe")]
+    // public async Task<IActionResult> IsSubscribed(string username, [FromClaim(ClaimTypes.NameIdentifier)] string userId)
     // {
     //     var user = Guid.Parse(userId);
-    //     var isUserFollows = await usersService.IsUserFollows(user, username);
-    //     return Ok(new { Result = isUserFollows });
+    //     var isUserSubscribed = await usersService.IsUserSubscribed(user, username);
+    //     return Ok(new { Result = isUserSubscribed });
     // }
 
     [IsAuthenticated]
-    [HttpPost("{username}/follow")]
+    [HttpPost("{username}/subscribe")]
     [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> FollowUser([FromRoute] string username,
+    public async Task<IActionResult> SubscribeToUser([FromRoute] string username,
         [FromUserId] Guid? userId)
     {
         if (userId == null)
         {
             return Unauthorized();
         }
-        var result = await usersService.FollowUser((Guid)userId, username);
+        var result = await usersService.SubscribeToUser((Guid)userId, username);
         if (result)
         {
             return Created();
@@ -155,16 +155,16 @@ public class UsersController(UsersService usersService) : ControllerBase
     }
 
     [IsAuthenticated]
-    [HttpDelete("{username}/follow")]
+    [HttpDelete("{username}/subscribe")]
     [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> UnfollowUser([FromRoute] string username,
+    public async Task<IActionResult> UnsubscribeFromUser([FromRoute] string username,
         [FromUserId] Guid? userId)
     {
         if (userId == null)
         {
             return Unauthorized();
         }
-        var result = await usersService.UnfollowUser((Guid)userId, username);
+        var result = await usersService.UnsubscribeFromUser((Guid)userId, username);
         if (result)
         {
             return Created();
@@ -173,92 +173,92 @@ public class UsersController(UsersService usersService) : ControllerBase
         return BadRequest();
     }
 
-    [HttpGet("{username}/follows/users")]
-    [ProducesResponseType(typeof(PagedUserFollowsDto), StatusCodes.Status200OK)]
+    [HttpGet("{username}/subscribes/users")]
+    [ProducesResponseType(typeof(PagedUserSubscribesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetUserFollows(
+    public async Task<IActionResult> GetUserSubscribes(
         [FromRoute] string username,
         [FromQuery(Name = "next_page_token")] string? nextPageToken,
         [FromUserId] Guid? myUserId)
     {
-        GetUserFollowsDto[] follows;
+        GetUserSubscribesDto[] subscribes;
         if (nextPageToken != null)
         {
             var decodeResult = CursorEncoder.DecodeText(nextPageToken);
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            follows = await usersService.GetUserFollows(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
+            subscribes = await usersService.GetUserSubscribes(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
         }
         else
         {
-            follows = await usersService.GetUserFollows(username, PageSize + 1, null, null, myUserId);
+            subscribes = await usersService.GetUserSubscribes(username, PageSize + 1, null, null, myUserId);
         }
 
-        var followsPage = follows.Take(PageSize).ToArray();
-        var nextToken = follows.Length <= PageSize
+        var subscribesPage = subscribes.Take(PageSize).ToArray();
+        var nextToken = subscribes.Length <= PageSize
             ? null
-            : CursorEncoder.Encode(followsPage.Last().CreatedAt, followsPage.Last().Username);
+            : CursorEncoder.Encode(subscribesPage.Last().CreatedAt, subscribesPage.Last().Username);
 
-        return Ok(new PagedUserFollowsDto(followsPage, nextToken));
+        return Ok(new PagedUserSubscribesDto(subscribesPage, nextToken));
     }
 
-    [HttpGet("{username}/follows/groups")]
-    [ProducesResponseType(typeof(PagedUserGroupFollowsDto), StatusCodes.Status200OK)]
+    [HttpGet("{username}/subscribes/groups")]
+    [ProducesResponseType(typeof(PagedUserGroupSubscribesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetGroupFollows(
+    public async Task<IActionResult> GetGroupSubscribes(
         [FromRoute] string username,
         [FromQuery(Name = "next_page_token")] string? nextPageToken)
     {
-        GetUserFollowingGroupsDto[] groupFollows;
+        GetUserGroupSubscribesDto[] groupSubscribes;
         if (nextPageToken != null)
         {
             var decodeResult = CursorEncoder.DecodeText(nextPageToken);
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            groupFollows = await usersService.GetUserFollowingGroups(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+            groupSubscribes = await usersService.GetUserGroupSubscribes(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
         }
         else
         {
-            groupFollows = await usersService.GetUserFollowingGroups(username, PageSize + 1, null, null);
+            groupSubscribes = await usersService.GetUserGroupSubscribes(username, PageSize + 1, null, null);
         }
 
-        var groupFollowsPage = groupFollows.Take(PageSize).ToArray();
-        var nextToken = groupFollows.Length <= PageSize
+        var groupSubscribesPage = groupSubscribes.Take(PageSize).ToArray();
+        var nextToken = groupSubscribes.Length <= PageSize
             ? null
-            : CursorEncoder.Encode(groupFollowsPage.Last().CreatedAt, groupFollowsPage.Last().Alias);
+            : CursorEncoder.Encode(groupSubscribesPage.Last().CreatedAt, groupSubscribesPage.Last().Alias);
 
-        return Ok(new PagedUserGroupFollowsDto(groupFollowsPage, nextToken));
+        return Ok(new PagedUserGroupSubscribesDto(groupSubscribesPage, nextToken));
     }
 
-    [HttpGet("{username}/followers")]
-    [ProducesResponseType(typeof(PagedUserFollowersDto), StatusCodes.Status200OK)]
+    [HttpGet("{username}/subscribers")]
+    [ProducesResponseType(typeof(PagedUserSubscribersDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetUserFollowers(
+    public async Task<IActionResult> GetUserSubscribers(
         [FromRoute] string username,
         [FromQuery(Name = "next_page_token")] string? nextPageToken,
         [FromUserId] Guid? myUserId)
     {
-        GetUserFollowersDto[] followers;
+        GetUserSubscribersDto[] subscribers;
         if (nextPageToken != null)
         {
             var decodeResult = CursorEncoder.DecodeText(nextPageToken);
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            followers = await usersService.GetUserFollowers(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
+            subscribers = await usersService.GetUserSubscribers(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
         }
         else
         {
-            followers = await usersService.GetUserFollowers(username, PageSize + 1, null, null, myUserId);
+            subscribers = await usersService.GetUserSubscribers(username, PageSize + 1, null, null, myUserId);
         }
 
-        var followersPage = followers.Take(PageSize).ToArray();
-        var nextToken = followers.Length <= PageSize
+        var subscribersPage = subscribers.Take(PageSize).ToArray();
+        var nextToken = subscribers.Length <= PageSize
             ? null
-            : CursorEncoder.Encode(followersPage.Last().CreatedAt, followersPage.Last().Username);
+            : CursorEncoder.Encode(subscribersPage.Last().CreatedAt, subscribersPage.Last().Username);
 
-        return Ok(new PagedUserFollowersDto(followersPage, nextToken));
+        return Ok(new PagedUserSubscribersDto(subscribersPage, nextToken));
     }
 }

@@ -1,9 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Npgsql;
 
 namespace TolkApi.Users.DTO;
 
-public record GetUserFollowsDto(
+public record GetUserSubscribersDto(
     [property: Required]
     string Username,
     [property: Required]
@@ -15,9 +15,9 @@ public record GetUserFollowsDto(
     DateTime CreatedAt
 )
 {
-    public static GetUserFollowsDto FromReader(NpgsqlDataReader reader)
+    public static GetUserSubscribersDto FromReader(NpgsqlDataReader reader)
     {
-        return new GetUserFollowsDto(
+        return new GetUserSubscribersDto(
             reader.GetString(0),
             reader.GetString(1),
             reader.IsDBNull(2) ? null : reader.GetString(2),

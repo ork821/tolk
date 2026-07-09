@@ -118,7 +118,7 @@ public class UsersService(DatabaseContext databaseContext)
         return null;
     }
 
-    public async Task<GetUserFollowersDto[]> GetUserFollowers(
+    public async Task<GetUserSubscribersDto[]> GetUserSubscribers(
         string username,
         int limit,
         DateTime? lastCreatedAt,
@@ -126,7 +126,7 @@ public class UsersService(DatabaseContext databaseContext)
         Guid? myUserId)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_followers(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
+            .CreateCommand(@"SELECT * FROM users.get_user_subscribers(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@limit", limit);
@@ -136,15 +136,15 @@ public class UsersService(DatabaseContext databaseContext)
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        var followers = new List<GetUserFollowersDto>();
+        var subscribers = new List<GetUserSubscribersDto>();
 
-        while (await reader.ReadAsync()) followers.Add(GetUserFollowersDto.FromReader(reader));
+        while (await reader.ReadAsync()) subscribers.Add(GetUserSubscribersDto.FromReader(reader));
 
-        return followers.ToArray();
+        return subscribers.ToArray();
     }
 
 
-    public async Task<GetUserFollowsDto[]> GetUserFollows(
+    public async Task<GetUserSubscribesDto[]> GetUserSubscribes(
         string username,
         int limit,
         DateTime? lastCreatedAt,
@@ -152,7 +152,7 @@ public class UsersService(DatabaseContext databaseContext)
         Guid? myUserId)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_follows(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
+            .CreateCommand(@"SELECT * FROM users.get_user_subscribes(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@limit", limit);
@@ -162,21 +162,21 @@ public class UsersService(DatabaseContext databaseContext)
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        var followers = new List<GetUserFollowsDto>();
+        var subscribes = new List<GetUserSubscribesDto>();
 
-        while (await reader.ReadAsync()) followers.Add(GetUserFollowsDto.FromReader(reader));
+        while (await reader.ReadAsync()) subscribes.Add(GetUserSubscribesDto.FromReader(reader));
 
-        return followers.ToArray();
+        return subscribes.ToArray();
     }
 
-    public async Task<GetUserFollowingGroupsDto[]> GetUserFollowingGroups(
+    public async Task<GetUserGroupSubscribesDto[]> GetUserGroupSubscribes(
         string username,
         int limit,
         DateTime? lastCreatedAt,
         string? lastAlias)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.get_user_group_follows(@username, @limit, @lastCreatedAt, @lastAlias)");
+            .CreateCommand(@"SELECT * FROM users.get_user_group_subscribes(@username, @limit, @lastCreatedAt, @lastAlias)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@limit", limit);
@@ -185,18 +185,18 @@ public class UsersService(DatabaseContext databaseContext)
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        var followers = new List<GetUserFollowingGroupsDto>();
+        var subscribes = new List<GetUserGroupSubscribesDto>();
 
-        while (await reader.ReadAsync()) followers.Add(new GetUserFollowingGroupsDto(reader.GetString(0), reader.GetDateTime(1)));
+        while (await reader.ReadAsync()) subscribes.Add(new GetUserGroupSubscribesDto(reader.GetString(0), reader.GetDateTime(1)));
 
-        return followers.ToArray();
+        return subscribes.ToArray();
     }
 
 
-    public async Task<bool> IsUserFollows(Guid userId, string username)
+    public async Task<bool> IsUserSubscribed(Guid userId, string username)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.is_user_follows(@userId, @username)");
+            .CreateCommand(@"SELECT * FROM users.is_user_subscribed(@userId, @username)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@userId", userId);
@@ -206,10 +206,10 @@ public class UsersService(DatabaseContext databaseContext)
         return await reader.ReadAsync() && reader.GetBoolean(0);
     }
 
-    public async Task<bool> FollowUser(Guid userId, string username)
+    public async Task<bool> SubscribeToUser(Guid userId, string username)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.add_follow_user(@userId, @username)");
+            .CreateCommand(@"SELECT * FROM users.add_user_subscribe(@userId, @username)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@userId", userId);
@@ -222,15 +222,15 @@ public class UsersService(DatabaseContext databaseContext)
         }
         catch (Exception e)
         {
-            Console.WriteLine("Follow failed: " + e.Message);
+            Console.WriteLine("Subscribe failed: " + e.Message);
             return false;
         }
     }
 
-    public async Task<bool> UnfollowUser(Guid userId, string username)
+    public async Task<bool> UnsubscribeFromUser(Guid userId, string username)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM users.remove_follow_user(@userId, @username)");
+            .CreateCommand(@"SELECT * FROM users.remove_user_subscribe(@userId, @username)");
 
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@userId", userId);
@@ -243,7 +243,7 @@ public class UsersService(DatabaseContext databaseContext)
         }
         catch (Exception e)
         {
-            Console.WriteLine("Unfollow failed", e);
+            Console.WriteLine("Unsubscribe failed", e);
             return false;
         }
     }
