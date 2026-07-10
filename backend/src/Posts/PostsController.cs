@@ -176,7 +176,7 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         var validationResult = await validator.ValidateAsync(body);
         if (!validationResult.IsValid)
         {
-            return BadRequest();
+            return BadRequest(validationResult.ToString());
         }
         var id = idGenerator.CreateId();
         var createResult = await commentsService.CreateComment(
@@ -386,7 +386,6 @@ public class CreateCommentDtoValidator : AbstractValidator<CreateCommentBodyDto>
     public CreateCommentDtoValidator()
     {
         RuleFor(x => x.Type)
-            .NotEmpty()
             .IsInEnum()
             .WithMessage("Type not valid");
 

@@ -130,6 +130,7 @@ export type OAuthLoginPayload = OAuthLoginDto;
 export type CreatePostPayload = CreatePostBodyDto;
 export type CreatePostResponse = CreateUpdatePostDto;
 export type CreateCommentPayload = CreateCommentBodyDto;
+export type CreateCommentResponse = CreateUpdateCommentDto;
 export type CreateReplyCommentPayload = CreateReplyCommentBodyDto;
 export type User = GetUserByUsernameDto;
 export type Post = PostDto;
@@ -200,6 +201,145 @@ export async function createPost({
     }
 
     return data;
+}
+
+export async function createComment({
+    postId,
+    content,
+    parentCommentId = null,
+}: {
+    postId: string;
+    content: string;
+    parentCommentId?: string | null;
+}): Promise<CreateUpdateCommentDto> {
+    const trimmedContent = content.trim();
+
+    if (trimmedContent.length === 0 || trimmedContent.length > 500) {
+        throw new Error("Comment content length must be between 1 and 500 characters");
+    }
+
+    const {data, error} = await client.POST("/v1/posts/{post}/comments", {
+        params: {
+            path: {
+                post: postId,
+                version: "1",
+            },
+        },
+        body: {
+            parentCommentId,
+            type: 0,
+            content: trimmedContent,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to create comment");
+    }
+
+    return data;
+}
+
+export async function createReplyComment({
+    commentId,
+    content,
+}: {
+    commentId: string;
+    content: string;
+}): Promise<CreateUpdateCommentDto> {
+    const trimmedContent = content.trim();
+
+    if (trimmedContent.length === 0 || trimmedContent.length > 500) {
+        throw new Error("Comment content length must be between 1 and 500 characters");
+    }
+
+    const {data, error} = await client.POST("/v1/comments/{comment}/replies", {
+        params: {
+            path: {
+                comment: commentId,
+                version: "1",
+            },
+        },
+        body: {
+            type: 0,
+            content: trimmedContent,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to create reply");
+    }
+
+    return data;
+}
+
+export async function getCommentReplies(
+    commentId: string,
+    {nextPageToken}: {nextPageToken: string | null}
+): Promise<PagedCommentsDto> {
+    const {data, error} = await client.GET("/v1/comments/{comment}/replies", {
+        params: {
+            path: {
+                comment: commentId,
+                version: "1",
+            },
+            query: nextPageToken ? {next_page_token: nextPageToken} : undefined,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to load comment replies");
+    }
+
+    return data;
+}
+
+export async function getCommentReactions(commentId: string): Promise<GetReactionsDto[]> {
+    const {data, error} = await client.GET("/v1/comments/{comment}/reactions", {
+        params: {
+            path: {
+                comment: commentId,
+                version: "1",
+            },
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    return data ?? [];
+}
+
+export async function setCommentReaction(commentId: string, reaction: string, shouldSelect: boolean) {
+    const request = {
+        params: {
+            path: {
+                comment: commentId,
+                reaction,
+                version: "1",
+            },
+        },
+    };
+
+    const {error} = shouldSelect
+        ? await client.PUT("/v1/comments/{comment}/reactions/{reaction}", request)
+        : await client.DELETE("/v1/comments/{comment}/reactions/{reaction}", request);
+
+    if (error) {
+        throw error;
+    }
 }
 
 export async function getUserPosts(

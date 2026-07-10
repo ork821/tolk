@@ -94,7 +94,7 @@ public class AuthController(
 
         if (userRefreshToken.Revoked)
         {
-            Console.WriteLine($"User come with revoked refresh key {userRefreshToken.UserId} - {refresh}");
+            Console.WriteLine($"User came with revoked refresh token {userRefreshToken.UserId}");
             await _authService.RevokeAllRefreshTokens(userRefreshToken.UserId, null);
             return Unauthorized();
         }

@@ -1,7 +1,8 @@
 "use client";
 
-import {use} from "react";
+import {use, useEffect} from "react";
 import {useQuery} from "@tanstack/react-query";
+import {useRouter} from "next/navigation";
 import {Loader2} from "lucide-react";
 import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
@@ -11,7 +12,9 @@ import {useAuth} from "@/hooks/use-auth";
 
 export default function UserProfilePage({params}: {params: Promise<{ username: string }>}) {
     const {username} = use(params);
+    const router = useRouter();
     const {user: currentUser} = useAuth();
+    const isCurrentUserBySession = currentUser?.username.toLowerCase() === username.toLowerCase();
 
     const {data: profile, status} = useQuery({
         queryKey: ["users", username],
@@ -35,9 +38,17 @@ export default function UserProfilePage({params}: {params: Promise<{ username: s
 
             return data;
         },
+        enabled: !isCurrentUserBySession,
     });
+    const shouldRedirectToProfile = isCurrentUserBySession || profile?.isMe === true;
 
-    if (status === "pending") {
+    useEffect(() => {
+        if (shouldRedirectToProfile) {
+            router.replace("/profile");
+        }
+    }, [router, shouldRedirectToProfile]);
+
+    if (shouldRedirectToProfile || status === "pending") {
         return (
             <div className="flex min-h-[60vh] items-center justify-center">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />

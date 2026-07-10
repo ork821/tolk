@@ -27,20 +27,32 @@ CREATE SCHEMA IF NOT EXISTS users;
 CREATE SCHEMA IF NOT EXISTS groups;
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA main, users, groups, public TO :"app_user";
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA main, users, groups TO :"app_user";
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA main, users, groups TO :"app_user";
-GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA main, users, groups TO :"app_user";
+REVOKE ALL ON ALL TABLES IN SCHEMA main, users, groups FROM :"app_user";
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA main, users, groups FROM :"app_user";
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA main, users, groups TO :"app_user";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA main, users, groups
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app_user";
+REVOKE ALL ON TABLES FROM :"app_user";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA main, users, groups
 GRANT EXECUTE ON FUNCTIONS TO :"app_user";
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA main, users, groups
-GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO :"app_user";
+REVOKE ALL ON SEQUENCES FROM :"app_user";
 
-ALTER ROLE :"app_user" SET search_path TO main, users, groups, public;
+SELECT format(
+    'ALTER FUNCTION %I.%I(%s) SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public',
+    n.nspname,
+    p.proname,
+    pg_get_function_identity_arguments(p.oid)
+)
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname IN ('main', 'users', 'groups')
+\gexec
+
+ALTER ROLE :"app_user" SET search_path TO main, users, groups;
 SQL

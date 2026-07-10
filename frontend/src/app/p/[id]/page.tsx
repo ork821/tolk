@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import {useQuery} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {Loader2} from "lucide-react";
 import {ThreadMainPost, ThreadNode} from "@/components/tread-node";
 import {BackButton} from "@/components/back-button";
@@ -9,13 +9,14 @@ import {PostCard} from "@/components/post-card";
 import {SubmitForm} from "@/components/input-form";
 import {CommentFeed} from "@/components/comment-feed";
 import {useAuth} from "@/hooks/use-auth";
-import {client, createPost} from "@/lib/api";
+import {client, createComment, createPost} from "@/lib/api";
 import {useRouter} from "next/navigation";
 import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
 export default function PostThreadPage({params}: {params: Promise<{id: string}>}) {
     const {user} = useAuth();
-    let router = useRouter();
+    const router = useRouter();
+    const queryClient = useQueryClient();
     const resolvedParams = React.use(params);
     const postId = resolvedParams.id;
 
@@ -49,15 +50,23 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
     const postIds = React.useMemo(() => data?.map((post) => post.id) ?? [], [data]);
     const {data: metadataByPostId = {}} = usePostMetadataBatch(postIds);
 
-
     const handleCreatePost = async (content: string) => {
-        if (!mainPost)
+        if (!mainPost) {
             return;
-        let post = await createPost({content, parentPostId: mainPost.id});
+        }
+
+        const post = await createPost({content, parentPostId: mainPost.id});
         router.push(`/p/${post.id}`);
     };
 
+    const handleCreateComment = async (content: string) => {
+        if (!mainPost) {
+            return;
+        }
 
+        await createComment({postId: mainPost.id, content});
+        await queryClient.invalidateQueries({queryKey: ["posts", mainPost.id, "comments"]});
+    };
 
     return (
         <div className="flex min-h-screen flex-col pb-20">
@@ -92,6 +101,7 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                             metadata={metadataByPostId[mainPost.id]}
                         />
                     </ThreadMainPost>
+
                     {user && (
                         <SubmitForm
                             placeholder="Опубликуйте ваш ответ"
@@ -100,22 +110,34 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                         />
                     )}
 
-                    <div className="flex flex-col">
-                        <div className="border-b bg-muted/30 px-4 py-2">
-                            <span className="text-sm font-medium text-muted-foreground md:text-lg">
-                                Комментарии
-                            </span>
+                    <div className="mt-6 flex flex-col border-t">
+                        <div className="border-b bg-muted/30 px-4 py-3">
+                            <h2 className="text-base font-semibold md:text-lg">
+                                Обсуждение поста
+                            </h2>
                         </div>
 
-                        <div className="divide-y divide-border">
-                            {!mainPost.isCommentsEnabled ? (
-                                <div className="p-10 text-center italic text-muted-foreground">
-                                    Комментарии выключены!
+                        {!mainPost.isCommentsEnabled ? (
+                            <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                                Комментарии к этому посту выключены.
+                            </div>
+                        ) : (
+                            <>
+                                {user && (
+                                    <div className="border-b">
+                                        <SubmitForm
+                                            placeholder="Добавьте комментарий к посту"
+                                            submitLabel="Комментировать"
+                                            onSubmit={handleCreateComment}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="divide-y divide-border">
+                                    <CommentFeed postId={postId} />
                                 </div>
-                            ) : (
-                                <CommentFeed postId={postId} />
-                            )}
-                        </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

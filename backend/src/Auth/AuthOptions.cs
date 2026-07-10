@@ -19,4 +19,15 @@ public class AuthOptions
     {
         return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["JwtSettings:AccessSecret"]!));
     }
+
+    public byte[] GetRefreshTokenHashKey()
+    {
+        var secret = _config["JwtSettings:RefreshTokenHashSecret"];
+        if (string.IsNullOrWhiteSpace(secret))
+        {
+            throw new InvalidOperationException("JwtSettings:RefreshTokenHashSecret is missing");
+        }
+
+        return Encoding.UTF8.GetBytes(secret);
+    }
 }

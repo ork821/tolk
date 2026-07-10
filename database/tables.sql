@@ -1,4 +1,5 @@
-﻿CREATE EXTENSION IF NOT EXISTS "ltree";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public;
 
 CREATE SCHEMA IF NOT EXISTS main;
 CREATE SCHEMA IF NOT EXISTS users;
@@ -8,19 +9,21 @@ CREATE OR REPLACE FUNCTION main.uuid_generate_v7() RETURNS UUID AS
 $$
 DECLARE
     v_unix_ms BIGINT;
-    v_rand    TEXT;
-    v_variant TEXT;
+    v_rand    BYTEA;
+    v_rand_hex TEXT;
 BEGIN
     v_unix_ms := FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT;
-    v_rand := substr(md5(random()::TEXT || clock_timestamp()::TEXT), 1, 18);
-    v_variant := substr('89ab', (floor(random() * 4)::INT) + 1, 1);
+    v_rand := public.gen_random_bytes(10);
+    v_rand := set_byte(v_rand, 0, (get_byte(v_rand, 0) & 15) | 112);
+    v_rand := set_byte(v_rand, 2, (get_byte(v_rand, 2) & 63) | 128);
+    v_rand_hex := encode(v_rand, 'hex');
 
     RETURN (
         lpad(to_hex(v_unix_ms), 12, '0') ||
-        '7' ||
-        substr(v_rand, 1, 3) ||
-        v_variant ||
-        substr(v_rand, 4, 15)
+        substr(v_rand_hex, 1, 4) ||
+        substr(v_rand_hex, 5, 4) ||
+        substr(v_rand_hex, 9, 4) ||
+        substr(v_rand_hex, 13, 12)
     )::UUID;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
@@ -57,9 +60,8 @@ CREATE TABLE IF NOT EXISTS users.refresh_tokens
     id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
     user_id    UUID        NOT NULL REFERENCES users.users (id) ON DELETE CASCADE,
 
-    -- Сам рефреш-токен (в идеале бекенд должен присылать сюда хэш токена, например SHA-256, 
-    -- а сам сырой токен отдавать пользователю, но для простоты можно хранить строку)
-    token      TEXT UNIQUE NOT NULL,
+    -- HMAC-SHA256 hash of the refresh token. The raw token is only stored in the user's HttpOnly cookie.
+    token_hash TEXT UNIQUE NOT NULL,
 
     -- Метаданные для безопасности и вкладки "Активные сеансы"
     user_agent TEXT,
@@ -73,7 +75,7 @@ CREATE TABLE IF NOT EXISTS users.refresh_tokens
 );
 
 -- Индекс для супер-быстрого поиска токена при обновлении (когда бекенд проверяет рефреш)
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON users.refresh_tokens (token) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON users.refresh_tokens (token_hash) WHERE revoked_at IS NULL;
 -- Индекс для получения списка всех активных сеансов пользователя
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON users.refresh_tokens (user_id) WHERE revoked_at IS NULL;
 
@@ -133,15 +135,18 @@ CREATE INDEX IF NOT EXISTS idx_user_subscribe_to_date ON users.user_subscribe (t
 CREATE TABLE IF NOT EXISTS groups.groups
 (
     id           UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
-    alias        TEXT UNIQUE NOT NULL,
-    display_name TEXT UNIQUE NOT NULL,
+    alias        TEXT NOT NULL,
+    display_name TEXT NOT NULL,
     description  TEXT,
 
     created_at   TIMESTAMPTZ      DEFAULT NOW(),
     updated_at   TIMESTAMPTZ,
     deleted_at   TIMESTAMPTZ
 );
+ALTER TABLE groups.groups DROP CONSTRAINT IF EXISTS groups_alias_key;
+ALTER TABLE groups.groups DROP CONSTRAINT IF EXISTS groups_display_name_key;
 CREATE UNIQUE INDEX idx_groups_alias_active ON groups.groups (alias) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_groups_display_name_active ON groups.groups (display_name) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS groups.group_info
 (
@@ -288,23 +293,7 @@ CREATE TABLE IF NOT EXISTS main.post_reaction_stats
 CREATE INDEX IF NOT EXISTS idx_post_reaction_stats_reaction_id
     ON main.post_reaction_stats (reaction_id);
 
--- Legacy event log for possible asynchronous stats rebuild/audit.
--- Current read-after-write consistency is provided by synchronous updates to
--- main.post_reaction_stats in add_post_reactions/delete_post_reactions.
--- New reaction mutations no longer write rows here.
-CREATE TABLE IF NOT EXISTS main.post_reaction_events
-(
-    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    post_id     BIGINT NOT NULL REFERENCES main.posts (id) ON DELETE CASCADE,
-    reaction_id UUID   NOT NULL REFERENCES main.reaction_types (id) ON DELETE CASCADE,
-    delta       SMALLINT NOT NULL CHECK (delta IN (-1, 1)),
-    created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_post_reaction_events_unprocessed
-    ON main.post_reaction_events (created_at, id);
-CREATE INDEX IF NOT EXISTS idx_post_reaction_events_reaction
-    ON main.post_reaction_events (post_id, reaction_id);
-
+DROP TABLE IF EXISTS main.post_reaction_events;
 
 -- Комментарии
 CREATE TABLE IF NOT EXISTS main.comments

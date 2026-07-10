@@ -14,3 +14,10 @@ public record GetPostReactionsBatchDto(
     [property: Required]
     GetReactionsDto[] Reactions
 );
+
+public record GetCommentReactionsBatchDto(
+    [property: Required]
+    string CommentId,
+    [property: Required]
+    GetReactionsDto[] Reactions
+);

@@ -37,7 +37,7 @@ public class CommentsService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@postId", postId);
         command.Parameters.AddWithValue("@commentId", commentId);
         command.Parameters.AddWithValue("@userId", userId);
-        command.Parameters.AddWithValue("@contentType", contentType);
+        command.Parameters.AddWithValue("@contentType", (int)contentType);
         command.Parameters.AddWithValue("@content", content);
         
         

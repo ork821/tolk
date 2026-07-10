@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TolkApi.Comments.DTO;
 using TolkApi.DTO;
 using TolkApi.Posts;
 using TolkApi.Reactions;
@@ -18,6 +19,38 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     : ControllerBase
 {
     private const int RepliesPageSize = 10;
+
+    [HttpPost("metadata")]
+    [ProducesResponseType(typeof(CommentMetadataDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetMetadata(
+        [FromBody] GetCommentsMetadataRequestDto body,
+        [FromUserId] Guid? userId
+    )
+    {
+        if (body.CommentIds.Length == 0) return Ok(Array.Empty<CommentMetadataDto>());
+
+        var commentIds = new List<long>(body.CommentIds.Length);
+        foreach (var comment in body.CommentIds.Distinct())
+        {
+            if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
+            commentIds.Add(commentId);
+        }
+
+        var uniqueCommentIds = commentIds.ToArray();
+        var reactions = await reactionService.GetCommentReactions(uniqueCommentIds, userId);
+        var reactionsByCommentId = reactions.ToDictionary(x => x.CommentId);
+
+        var metadata = uniqueCommentIds
+            .Select(commentId => new CommentMetadataDto(
+                commentId.ToString(),
+                reactionsByCommentId.TryGetValue(commentId.ToString(), out var commentReactions)
+                    ? commentReactions.Reactions
+                    : []))
+            .ToArray();
+
+        return Ok(metadata);
+    }
 
     [HttpGet("{comment}/replies")]
     [ProducesResponseType(typeof(PagedCommentsDto), StatusCodes.Status200OK)]

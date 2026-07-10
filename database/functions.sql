@@ -9,8 +9,10 @@ CREATE OR REPLACE FUNCTION users.create_user(p_username TEXT, p_display_name TEX
             )
 AS
 $$
+DECLARE
+    v_username TEXT := lower(p_username);
 BEGIN
-    IF EXISTS (SELECT 1 FROM users.users u WHERE u.username = p_username AND u.deleted_at IS NULL) THEN
+    IF EXISTS (SELECT 1 FROM users.users u WHERE u.username = v_username AND u.deleted_at IS NULL) THEN
         RAISE EXCEPTION 'Username already in usage';
     END IF;
     IF p_email IS NOT NULL
@@ -19,7 +21,7 @@ BEGIN
     END IF;
 
     RETURN QUERY INSERT INTO users.users (username, display_name, email)
-        VALUES (p_username, p_display_name, p_email)
+        VALUES (v_username, p_display_name, p_email)
         RETURNING
             id as po_user_id,
             username as po_username,
@@ -170,7 +172,7 @@ BEGIN
           AND uf.deleted_at IS NULL
     );
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION users.get_user_subscribes(
@@ -221,7 +223,7 @@ BEGIN
                  ORDER BY uf.created_at DESC, u.username ASC
                  LIMIT p_limit;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 
@@ -274,7 +276,7 @@ BEGIN
                  ORDER BY uf.created_at DESC, u.username ASC
                  LIMIT p_limit;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 
@@ -309,7 +311,7 @@ BEGIN
                  ORDER BY gf.created_at DESC, g.alias ASC
                  LIMIT p_limit;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql;
 
 
 
@@ -426,23 +428,23 @@ $$
 -- Refresh tokens
 CREATE OR REPLACE FUNCTION users.save_refresh_token(
     p_user_id UUID,
-    p_token TEXT,
+    p_token_hash TEXT,
     p_expires_in_days INT DEFAULT 30, -- По умолчанию токен живет 30 дней
     p_user_agent TEXT DEFAULT NULL,
     p_ip_address INET DEFAULT NULL
 ) RETURNS VOID AS
 $$
 BEGIN
-    INSERT INTO users.refresh_tokens (user_id, token, expires_at, user_agent, ip_address)
+    INSERT INTO users.refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
     VALUES (p_user_id,
-            p_token,
+            p_token_hash,
             NOW() + (p_expires_in_days || ' days')::INTERVAL,
             p_user_agent,
             p_ip_address);
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION users.validate_refresh_token(p_token TEXT)
+CREATE OR REPLACE FUNCTION users.validate_refresh_token(p_token_hash TEXT)
     RETURNS TABLE
             (
                 po_user_id    UUID,
@@ -457,20 +459,20 @@ BEGIN
                revoked_at IS NOT NULL,
                revoked_at IS NULL AND expires_at > NOW()
         FROM users.refresh_tokens
-        WHERE token = p_token
+        WHERE token_hash = p_token_hash
         LIMIT 1;
 
     -- Если токен не найден, возвращаем пустую строку (бекенд поймет это как FALSE и разлогинит юзера)
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION users.revoke_refresh_token(p_token TEXT)
+CREATE OR REPLACE FUNCTION users.revoke_refresh_token(p_token_hash TEXT)
     RETURNS BOOLEAN AS
 $$
 BEGIN
     UPDATE users.refresh_tokens
     SET revoked_at = NOW()
-    WHERE token = p_token
+    WHERE token_hash = p_token_hash
       AND revoked_at IS NULL;
 
     RETURN FOUND; -- Вернет TRUE, если сессия была найдена и закрыта
@@ -480,7 +482,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION users.revoke_all_refresh_tokens(
     p_user_id UUID,
-    p_except_token TEXT DEFAULT NULL -- Токен текущего устройства, который нужно оставить живым
+    p_except_token_hash TEXT DEFAULT NULL -- Hash токена текущего устройства, который нужно оставить живым
 ) RETURNS VOID AS
 $$
 BEGIN
@@ -488,7 +490,7 @@ BEGIN
     SET revoked_at = NOW()
     WHERE user_id = p_user_id
       AND revoked_at IS NULL
-      AND (p_except_token IS NULL OR token != p_except_token);
+      AND (p_except_token_hash IS NULL OR token_hash != p_except_token_hash);
 END;
 $$ LANGUAGE plpgsql;
 -----
@@ -1143,8 +1145,8 @@ BEGIN
         FROM main.posts p
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
-                JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
-                JOIN users.users pu on pu.id = pup.user_id
+                 LEFT JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
+                 LEFT JOIN users.users pu on pu.id = pup.user_id AND pu.deleted_at IS NULL
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
         WHERE p.id = p_post_id
@@ -1219,6 +1221,7 @@ CREATE OR REPLACE FUNCTION main.add_post_reactions(p_post_id BIGINT, p_user_id U
 $$
 DECLARE
     p_reaction_id UUID;
+    v_was_active BOOLEAN;
 BEGIN
     SELECT id
     FROM main.reaction_types
@@ -1230,14 +1233,29 @@ BEGIN
         RAISE EXCEPTION 'Unknown reaction name';
     END IF;
 
+    SELECT EXISTS(
+        SELECT 1
+        FROM main.post_reactions pr
+        WHERE pr.post_id = p_post_id
+          AND pr.user_id = p_user_id
+          AND pr.reaction_id = p_reaction_id
+          AND pr.deleted_at IS NULL
+    )
+    INTO v_was_active;
+
     INSERT INTO main.post_reactions (post_id, user_id, reaction_id)
     SELECT p.id, p_user_id, p_reaction_id
     FROM main.posts p
     WHERE p.id = p_post_id
       AND p.deleted_at IS NULL
-    ON CONFLICT (post_id, user_id, reaction_id) DO NOTHING;
+    ON CONFLICT (post_id, user_id, reaction_id) DO UPDATE
+        SET deleted_at = NULL,
+            updated_at = CASE
+                WHEN main.post_reactions.deleted_at IS NULL THEN main.post_reactions.updated_at
+                ELSE NOW()
+            END;
 
-    IF FOUND THEN
+    IF FOUND AND NOT v_was_active THEN
         INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
         VALUES (p_post_id, p_reaction_id, 1)
         ON CONFLICT (post_id, reaction_id) DO UPDATE
@@ -1245,9 +1263,9 @@ BEGIN
 
     END IF;
 
-    RETURN FOUND;
+    RETURN FOUND OR v_was_active;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 
 CREATE OR REPLACE FUNCTION main.delete_post_reactions(p_post_id BIGINT, p_user_id UUID, p_reaction_name TEXT)
@@ -1266,11 +1284,13 @@ BEGIN
         RAISE EXCEPTION 'Unknown reaction name';
     END IF;
 
-    DELETE
-    FROM main.post_reactions pr
+    UPDATE main.post_reactions pr
+    SET deleted_at = NOW(),
+        updated_at = NOW()
     WHERE pr.post_id = p_post_id
       AND pr.user_id = p_user_id
-      AND pr.reaction_id = p_reaction_id;
+      AND pr.reaction_id = p_reaction_id
+      AND pr.deleted_at IS NULL;
     IF FOUND THEN
         INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
         VALUES (p_post_id, p_reaction_id, 0)
@@ -1281,7 +1301,7 @@ BEGIN
 
     RETURN FOUND;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 CREATE OR REPLACE FUNCTION main.get_feed(p_limit INT DEFAULT 20,
                                          p_last_created_at TIMESTAMPTZ DEFAULT NULL,
@@ -1325,8 +1345,8 @@ BEGIN
                  FROM main.posts p
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
-                        JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
-                        JOIN users.users pu on pu.id = pup.user_id
+                          LEFT JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
+                          LEFT JOIN users.users pu on pu.id = pup.user_id AND pu.deleted_at IS NULL
                           LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                           LEFT JOIN main.post_stats ps on p.id = ps.post_id
                  WHERE u.deleted_at IS NULL
@@ -1340,73 +1360,6 @@ BEGIN
                  LIMIT p_limit;
 END;
 $$ language plpgsql;
-
-CREATE OR REPLACE FUNCTION main.sync_post_reaction_stats(p_limit INT DEFAULT 1000)
-    RETURNS TABLE
-            (
-                po_processed_events BIGINT,
-                po_affected_stats   BIGINT
-            )
-AS
-$$
-BEGIN
-    -- Legacy async stats sync. Post reaction counters are currently updated synchronously
-    -- in add_post_reactions/delete_post_reactions. New reaction mutations no longer write
-    -- to post_reaction_events, so this function is kept only for old queued events or audit.
-    RETURN QUERY
-        WITH locked_events AS MATERIALIZED (
-            SELECT id,
-                   post_id,
-                   reaction_id,
-                   delta
-            FROM main.post_reaction_events
-            ORDER BY id
-            LIMIT GREATEST(COALESCE(p_limit, 1000), 0)
-            FOR UPDATE SKIP LOCKED
-        ),
-        aggregated AS (
-            SELECT post_id,
-                   reaction_id,
-                   SUM(delta)::BIGINT AS delta_sum
-            FROM locked_events
-            GROUP BY post_id, reaction_id
-        ),
-        updated AS (
-            UPDATE main.post_reaction_stats prs
-            SET count = GREATEST(prs.count + a.delta_sum, 0)
-            FROM aggregated a
-            WHERE prs.post_id = a.post_id
-              AND prs.reaction_id = a.reaction_id
-            RETURNING prs.post_id, prs.reaction_id
-        ),
-        inserted AS (
-            INSERT INTO main.post_reaction_stats (post_id, reaction_id, count)
-            SELECT a.post_id,
-                   a.reaction_id,
-                   a.delta_sum
-            FROM aggregated a
-            WHERE a.delta_sum > 0
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM updated u
-                  WHERE u.post_id = a.post_id
-                    AND u.reaction_id = a.reaction_id
-              )
-            ON CONFLICT (post_id, reaction_id) DO UPDATE
-                SET count = GREATEST(main.post_reaction_stats.count + EXCLUDED.count, 0)
-            RETURNING post_id, reaction_id
-        ),
-        deleted AS (
-            DELETE FROM main.post_reaction_events pre
-            USING locked_events le
-            WHERE pre.id = le.id
-            RETURNING pre.id
-        )
-        SELECT (SELECT COUNT(*) FROM deleted)::BIGINT,
-               ((SELECT COUNT(*) FROM updated) + (SELECT COUNT(*) FROM inserted))::BIGINT;
-END;
-$$ language plpgsql;
-
 
 
 CREATE OR REPLACE FUNCTION main.add_comment_reactions(p_comment_id BIGINT, p_user_id UUID, p_reaction_name TEXT)
@@ -1433,15 +1386,15 @@ BEGIN
     ON CONFLICT (comment_id, user_id, reaction_id) DO NOTHING;
 
     IF FOUND THEN
-        INSERT INTO main.comment_reaction_stats (comment_id, reaction_id, count)
+        INSERT INTO main.comment_reaction_stats as crs (comment_id, reaction_id, count)
         VALUES (p_comment_id, p_reaction_id, 1)
         ON CONFLICT (comment_id, reaction_id) DO UPDATE
-            SET count = count + 1;
+            SET count = crs.count + 1;
     END IF;
 
     RETURN FOUND;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 
 CREATE OR REPLACE FUNCTION main.delete_comment_reactions(p_comment_id BIGINT, p_user_id UUID, p_reaction_name TEXT)
@@ -1465,15 +1418,15 @@ BEGIN
       AND cr.user_id = p_user_id
       AND cr.reaction_id = p_reaction_id;
     IF FOUND THEN
-        INSERT INTO main.comment_reaction_stats (comment_id, reaction_id, count)
+        INSERT INTO main.comment_reaction_stats as crs (comment_id, reaction_id, count)
         VALUES (p_comment_id, p_reaction_id, 0)
         ON CONFLICT (comment_id, reaction_id) DO UPDATE
-            SET count = GREATEST(count - 1, 0);
+            SET count = GREATEST(crs.count - 1, 0);
     END IF;
 
     RETURN FOUND;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 
 
@@ -1538,11 +1491,12 @@ BEGIN
                                AND rt.id = pr.reaction_id
                                AND pr.post_id = rp.post_id
                                AND pr.user_id = p_user_id
+                               AND pr.deleted_at IS NULL
         WHERE rt.is_active IS TRUE
           AND rt.deleted_at IS NULL
         ORDER BY rp.post_id, rt.name;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 CREATE OR REPLACE FUNCTION main.get_post_reactions(p_post_id BIGINT, p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
@@ -1561,7 +1515,7 @@ BEGIN
         FROM main.get_posts_reactions(ARRAY[p_post_id], p_user_id) reactions
         WHERE reactions.po_post_id = p_post_id;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 
 CREATE OR REPLACE FUNCTION main.get_comment_reactions(p_comment_id BIGINT)
@@ -1581,23 +1535,64 @@ BEGIN
                  WHERE rt.is_active IS TRUE
                    AND rt.deleted_at IS NULL;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
+
+
+CREATE OR REPLACE FUNCTION main.get_comments_reactions(p_comment_ids BIGINT[], p_user_id UUID DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_comment_id    BIGINT,
+                po_reaction_name TEXT,
+                po_count         BIGINT,
+                po_is_selected   BOOLEAN
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY
+        WITH requested_comments AS (
+            SELECT DISTINCT unnest(p_comment_ids) AS comment_id
+        )
+        SELECT rc.comment_id,
+               rt.name,
+               COALESCE(crs.count, 0),
+               cr.user_id IS NOT NULL
+        FROM requested_comments rc
+                 CROSS JOIN main.reaction_types rt
+                 LEFT JOIN main.comment_reaction_stats crs
+                           ON rt.id = crs.reaction_id AND crs.comment_id = rc.comment_id
+                 LEFT JOIN main.comment_reactions cr
+                           ON p_user_id IS NOT NULL
+                               AND rt.id = cr.reaction_id
+                               AND cr.comment_id = rc.comment_id
+                               AND cr.user_id = p_user_id
+                               AND cr.deleted_at IS NULL
+        WHERE rt.is_active IS TRUE
+          AND rt.deleted_at IS NULL
+        ORDER BY rc.comment_id, rt.name;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 
 CREATE OR REPLACE FUNCTION main.get_active_reactions()
     RETURNS TABLE
             (
-                po_reaction_name TEXT
+                po_reaction_name TEXT,
+                po_weight        DOUBLE PRECISION,
+                po_icon          TEXT
             )
 AS
 $$
 BEGIN
-    RETURN QUERY SELECT rt.name
+    RETURN QUERY SELECT rt.name,
+                        rt.weight::DOUBLE PRECISION,
+                        rt.icon
                  FROM main.reaction_types rt
                  WHERE rt.is_active IS TRUE
-                   AND rt.deleted_at IS NULL;
+                   AND rt.deleted_at IS NULL
+                 ORDER BY rt.name;
 END;
-$$ language plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, main, users, groups, public;
 
 
 --- COMMENTS

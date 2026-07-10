@@ -55,6 +55,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DataBase=Host=${DB_HOST:-db};Port=${DB_PORT:-5432};Database=${DB_NAME:-tolk};Username=${APP_DB_USER};Password=${APP_DB_PASSWORD}
       - JwtSettings__AccessSecret=${JWT_ACCESS_SECRET}
+      - JwtSettings__RefreshTokenHashSecret=${JWT_REFRESH_TOKEN_HASH_SECRET}
       - TOLK_Host=https://${DOMAIN}
       - TOLK_AllowedOrigins__0=https://${DOMAIN}
     read_only: true

@@ -9,13 +9,7 @@ public class ReactionService(DatabaseContext databaseContext)
     public async Task<ReactionTypeDto[]> GetReactionTypes()
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand("""
-                SELECT name, weight, icon
-                FROM main.reaction_types
-                WHERE is_active IS TRUE
-                  AND deleted_at IS NULL
-                ORDER BY name
-                """);
+            .CreateCommand("SELECT * FROM main.get_active_reactions()");
 
         await using var reader = await command.ExecuteReaderAsync();
         var reactionTypes = new List<ReactionTypeDto>();
@@ -116,6 +110,46 @@ public class ReactionService(DatabaseContext databaseContext)
             reactions.Add(new GetReactionsDto(reader.GetString(0), reader.GetInt64(1), false));
         }
         return reactions.ToArray();
+    }
+
+    public async Task<GetCommentReactionsBatchDto[]> GetCommentReactions(long[] commentIds, Guid? userId = null)
+    {
+        if (commentIds.Length == 0)
+        {
+            return [];
+        }
+
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_comments_reactions(@commentIds, @userId)");
+        command.Parameters.Add("commentIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = commentIds;
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId.HasValue ? userId.Value : DBNull.Value;
+
+        await using var reader = await command.ExecuteReaderAsync();
+        var reactionsByCommentId = new Dictionary<long, List<GetReactionsDto>>();
+
+        foreach (var commentId in commentIds)
+        {
+            reactionsByCommentId.TryAdd(commentId, []);
+        }
+
+        while (await reader.ReadAsync())
+        {
+            var commentId = reader.GetInt64(0);
+            if (!reactionsByCommentId.TryGetValue(commentId, out var reactions))
+            {
+                reactions = [];
+                reactionsByCommentId[commentId] = reactions;
+            }
+
+            reactions.Add(new GetReactionsDto(
+                reader.GetString(1),
+                reader.GetInt64(2),
+                reader.GetBoolean(3)));
+        }
+
+        return commentIds
+            .Select(commentId => new GetCommentReactionsBatchDto(commentId.ToString(), reactionsByCommentId[commentId].ToArray()))
+            .ToArray();
     }
     
     public async Task<GetReactionsDto[]> GetPostReactions(long postId, Guid? userId = null)

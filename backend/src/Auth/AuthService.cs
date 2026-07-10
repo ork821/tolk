@@ -1,17 +1,27 @@
+using System.Security.Cryptography;
+using System.Text;
 using TolkApi.Auth.Providers.DTO;
 using TolkApi.Database;
 
 namespace TolkApi.Auth;
 
-public class AuthService(DatabaseContext databaseContext)
+public class AuthService(DatabaseContext databaseContext, AuthOptions authOptions)
 {
+    private string HashRefreshToken(string refreshToken)
+    {
+        var tokenBytes = Encoding.UTF8.GetBytes(refreshToken);
+        var hashBytes = HMACSHA256.HashData(authOptions.GetRefreshTokenHashKey(), tokenBytes);
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+    }
+
     public async Task<bool> SaveRefreshToken(Guid userId, string refreshToken, int days, string userAgent)
     {
+        var refreshTokenHash = HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
-            .CreateCommand("SELECT * FROM users.save_refresh_token(@userId, @refreshToken, @days, @userAgent)");
+            .CreateCommand("SELECT * FROM users.save_refresh_token(@userId, @refreshTokenHash, @days, @userAgent)");
 
         command.Parameters.AddWithValue("@userId", userId);
-        command.Parameters.AddWithValue("@refreshToken", refreshToken);
+        command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash);
         command.Parameters.AddWithValue("@days", days);
         command.Parameters.AddWithValue("@userAgent", userAgent);
 
@@ -29,10 +39,11 @@ public class AuthService(DatabaseContext databaseContext)
 
     public async Task<ValidateTokenDto?> ValidateRefreshToken(string refreshToken)
     {
+        var refreshTokenHash = HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
-            .CreateCommand("SELECT * FROM users.validate_refresh_token(@refreshToken)");
+            .CreateCommand("SELECT * FROM users.validate_refresh_token(@refreshTokenHash)");
 
-        command.Parameters.AddWithValue("@refreshToken", refreshToken);
+        command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash);
 
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -48,10 +59,11 @@ public class AuthService(DatabaseContext databaseContext)
 
     public async Task<bool> RevokeRefreshToken(string refreshToken)
     {
+        var refreshTokenHash = HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
-            .CreateCommand("SELECT * FROM users.revoke_refresh_token(@refreshToken)");
+            .CreateCommand("SELECT * FROM users.revoke_refresh_token(@refreshTokenHash)");
 
-        command.Parameters.AddWithValue("@refreshToken", refreshToken);
+        command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash);
 
         var result = await command.ExecuteScalarAsync();
         if (result == null) return false;
@@ -62,11 +74,12 @@ public class AuthService(DatabaseContext databaseContext)
 
     public async Task<bool> RevokeAllRefreshTokens(Guid userId, string? refreshToken)
     {
+        var refreshTokenHash = refreshToken == null ? null : HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
-            .CreateCommand("SELECT users.revoke_all_refresh_tokens(@userId, @refreshToken)");
+            .CreateCommand("SELECT users.revoke_all_refresh_tokens(@userId, @refreshTokenHash)");
 
         command.Parameters.AddWithValue("@userId", userId);
-        command.Parameters.AddWithValue("@refreshToken", refreshToken == null ? DBNull.Value : refreshToken);
+        command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash == null ? DBNull.Value : refreshTokenHash);
 
         await command.ExecuteNonQueryAsync();
         return true;

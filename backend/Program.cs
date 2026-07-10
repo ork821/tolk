@@ -50,6 +50,11 @@ if (builder.Configuration["JwtSettings:AccessSecret"] == null)
     throw new Exception("Access key is missing");
 }
 
+if (string.IsNullOrWhiteSpace(builder.Configuration["JwtSettings:RefreshTokenHashSecret"]))
+{
+    throw new Exception("Refresh token hash key is missing");
+}
+
 // Add services to the container.
 builder.Services.AddSingleton<DatabaseContext>(_ =>
 {
