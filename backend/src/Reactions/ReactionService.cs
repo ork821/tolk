@@ -2,6 +2,8 @@
 using TolkApi.Reactions.DTO;
 using NpgsqlTypes;
 
+using TolkApi.Comments.DTO;
+
 namespace TolkApi.Reactions;
 
 public class ReactionService(DatabaseContext databaseContext)
@@ -237,5 +239,35 @@ public class ReactionService(DatabaseContext databaseContext)
         }
 
         return permissionsByPostId;
+    }
+
+    public async Task<Dictionary<long, CommentPermissionsDto>> GetCommentPermissions(long[] commentIds, Guid userId)
+    {
+        var permissionsByCommentId = new Dictionary<long, CommentPermissionsDto>();
+        foreach (var commentId in commentIds)
+        {
+            permissionsByCommentId.TryAdd(commentId, new CommentPermissionsDto(false, false));
+        }
+
+        if (commentIds.Length == 0)
+        {
+            return permissionsByCommentId;
+        }
+
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM main.get_comments_permissions(@commentIds, @userId)");
+        command.Parameters.Add("commentIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = commentIds;
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            permissionsByCommentId[reader.GetInt64(0)] = new CommentPermissionsDto(
+                reader.GetBoolean(1),
+                reader.GetBoolean(2));
+        }
+
+        return permissionsByCommentId;
     }
 }

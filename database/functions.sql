@@ -1463,6 +1463,35 @@ END;
 $$ language plpgsql;
 
 
+CREATE OR REPLACE FUNCTION main.get_comments_permissions(p_comment_ids BIGINT[], p_user_id UUID)
+    RETURNS TABLE
+            (
+                po_comment_id  BIGINT,
+                po_can_update  BOOLEAN,
+                po_can_delete  BOOLEAN
+            )
+AS
+$$
+BEGIN
+    RETURN QUERY
+        WITH requested_comments AS (
+            SELECT DISTINCT unnest(p_comment_ids) AS comment_id
+        )
+        SELECT rc.comment_id,
+               c.id IS NOT NULL
+                   AND c.author_id = p_user_id
+                   AND c.created_at >= NOW() - INTERVAL '24 hours',
+               c.id IS NOT NULL
+                   AND c.author_id = p_user_id
+        FROM requested_comments rc
+                 LEFT JOIN main.comments c
+                           ON c.id = rc.comment_id
+                          AND c.deleted_at IS NULL
+        ORDER BY rc.comment_id;
+END;
+$$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE FUNCTION main.get_posts_reactions(p_post_ids BIGINT[], p_user_id UUID DEFAULT NULL)
     RETURNS TABLE
             (
@@ -1612,7 +1641,8 @@ CREATE OR REPLACE FUNCTION main.get_reply_comments(
                 po_content             TEXT,
                 po_replies_count       INT,
                 po_created_at          TIMESTAMPTZ,
-                po_updated_at          TIMESTAMPTZ
+                po_updated_at          TIMESTAMPTZ,
+                po_deleted_at          TIMESTAMPTZ
             )
 AS
 $$
@@ -1620,19 +1650,20 @@ BEGIN
 
     RETURN QUERY
         SELECT c.id,
-               u.username,
-               u.display_name,
-               ufi.avatar_url,
-               c.content_type,
-               c.content,
+               CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.username, '') ELSE '' END,
+               CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.display_name, '') ELSE '' END,
+               CASE WHEN c.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
+               CASE WHEN c.deleted_at IS NULL THEN c.content_type ELSE 0 END,
+               CASE WHEN c.deleted_at IS NULL THEN c.content ELSE '' END,
                c.replies_count,
                c.created_at,
-               c.updated_at
+               c.updated_at,
+               c.deleted_at
         FROM main.comments c
-                 INNER JOIN users.users u ON u.id = c.author_id
+                 LEFT JOIN users.users u ON u.id = c.author_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
         WHERE c.parent_comment_id = p_parent_comment_id
-          AND c.deleted_at IS NULL
+          AND (c.deleted_at IS NULL OR c.replies_count > 0)
           AND (
             p_last_created_at IS NULL
                 OR p_last_id IS NULL
@@ -1661,7 +1692,8 @@ CREATE OR REPLACE FUNCTION main.get_post_comments(
                 po_content             TEXT,
                 po_replies_count       INT,
                 po_created_at          TIMESTAMPTZ,
-                po_updated_at          TIMESTAMPTZ
+                po_updated_at          TIMESTAMPTZ,
+                po_deleted_at          TIMESTAMPTZ
             )
 AS
 $$
@@ -1669,20 +1701,21 @@ BEGIN
 
     RETURN QUERY
         SELECT c.id,
-               u.username,
-               u.display_name,
-               ufi.avatar_url,
-               c.content_type,
-               c.content,
+               CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.username, '') ELSE '' END,
+               CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.display_name, '') ELSE '' END,
+               CASE WHEN c.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
+               CASE WHEN c.deleted_at IS NULL THEN c.content_type ELSE 0 END,
+               CASE WHEN c.deleted_at IS NULL THEN c.content ELSE '' END,
                c.replies_count,
                c.created_at,
-               c.updated_at
+               c.updated_at,
+               c.deleted_at
         FROM main.comments c
-                 INNER JOIN users.users u ON u.id = c.author_id
+                 LEFT JOIN users.users u ON u.id = c.author_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
         WHERE c.post_id = p_post_id
           AND c.parent_comment_id IS NULL
-          AND c.deleted_at IS NULL
+          AND (c.deleted_at IS NULL OR c.replies_count > 0)
           AND (
             p_last_created_at IS NULL
                 OR p_last_id IS NULL
@@ -1823,10 +1856,12 @@ BEGIN
 
     RETURN QUERY UPDATE main.comments SET
         content_type = p_content_type,
-        content = p_content
+        content = p_content,
+        updated_at = NOW()
         WHERE id = p_comment_id AND
               author_id = p_user_id AND
-              deleted_at IS NULL
+              deleted_at IS NULL AND
+              created_at >= NOW() - INTERVAL '24 hours'
         RETURNING main.comments.id,
             main.comments.content_type,
             main.comments.content,

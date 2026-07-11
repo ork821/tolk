@@ -101,6 +101,7 @@ export type ApiSchemas = components["schemas"];
 export type AuthProvidersDto = ApiSchemas["AuthProvidersDto"];
 export type AuthTokenDto = ApiSchemas["AuthTokenDto"];
 export type CommentEntity = ApiSchemas["CommentEntity"];
+export type CommentMetadataDto = ApiSchemas["CommentMetadataDto"];
 export type CreateCommentBodyDto = ApiSchemas["CreateCommentBodyDto"];
 export type CreatePostBodyDto = ApiSchemas["CreatePostBodyDto"];
 export type CreateReplyCommentBodyDto = ApiSchemas["CreateReplyCommentBodyDto"];
@@ -138,6 +139,7 @@ export type Comment = CommentEntity;
 export type PostsPageResponse = PagedPostsDto;
 export type CommentsPageResponse = PagedCommentsDto;
 export type PostMetadataByPostId = Record<string, PostMetadataDto>;
+export type CommentMetadataByCommentId = Record<string, CommentMetadataDto>;
 export type PostReactionsByPostId = Record<string, GetReactionsDto[]>;
 export type FollowListUser = (GetUserSubscribesDto | GetUserSubscribersDto) & {
     isSubscribed?: boolean;
@@ -322,6 +324,30 @@ export async function getCommentReactions(commentId: string): Promise<GetReactio
     return data ?? [];
 }
 
+export async function getCommentsMetadata(commentIds: string[]): Promise<CommentMetadataByCommentId> {
+    const uniqueCommentIds = Array.from(new Set(commentIds)).filter(Boolean);
+    if (uniqueCommentIds.length === 0) {
+        return {};
+    }
+
+    const {data, error} = await client.POST("/v1/comments/metadata", {
+        params: {
+            path: {
+                version: "1",
+            },
+        },
+        body: {
+            ids: uniqueCommentIds,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    return data;
+}
+
 export async function setCommentReaction(commentId: string, reaction: string, shouldSelect: boolean) {
     const request = {
         params: {
@@ -453,7 +479,7 @@ export async function getPostsMetadata(postIds: string[]): Promise<PostMetadataB
             },
         },
         body: {
-            postIds: uniquePostIds,
+            ids: uniquePostIds,
         },
     });
 
@@ -461,7 +487,7 @@ export async function getPostsMetadata(postIds: string[]): Promise<PostMetadataB
         throw error;
     }
 
-    return Object.fromEntries((data ?? []).map((item) => [item.id, item]));
+    return data;
 }
 
 export async function getUserSubscribes(

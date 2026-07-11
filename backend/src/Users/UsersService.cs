@@ -87,7 +87,7 @@ public class UsersService(DatabaseContext databaseContext)
         return null;
     }
 
-    public async Task<UserMetadataDto[]> GetUsersMetadata(string[] usernames, Guid? userId)
+    public async Task<Dictionary<string, UserMetadataDto>> GetUsersMetadata(string[] usernames, Guid? userId)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_users_metadata(@usernames, @userId)");
@@ -97,11 +97,11 @@ public class UsersService(DatabaseContext databaseContext)
 
         await using var reader = await command.ExecuteReaderAsync();
 
-        var usersMetadata = new List<UserMetadataDto>();
+        var usersMetadata = new Dictionary<string, UserMetadataDto>(StringComparer.OrdinalIgnoreCase);
 
-        while (await reader.ReadAsync()) usersMetadata.Add(UserMetadataDto.FromReader(reader));
+        while (await reader.ReadAsync()) usersMetadata[reader.GetString(0)] = UserMetadataDto.FromReader(reader);
 
-        return usersMetadata.ToArray();
+        return usersMetadata;
     }
 
     public async Task<GetUserByUsernameDto?> GetUserById(Guid userId)

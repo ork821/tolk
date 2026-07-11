@@ -46,7 +46,7 @@ export function PostCard({
     const isFireSelected = fireReaction?.isSelected ?? false;
     const fireCount = fireReaction?.count ?? 0;
     const permissions = metadata?.permissions;
-    const canEdit = permissions?.canEdit ?? false;
+    const canEdit = permissions?.canUpdate ?? false;
     const canDelete = permissions?.canDelete ?? false;
 
     const reactionMutation = useMutation({

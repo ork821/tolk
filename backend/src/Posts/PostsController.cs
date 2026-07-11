@@ -195,17 +195,21 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     
 
     [HttpPost("metadata")]
-    [ProducesResponseType(typeof(PostMetadataDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Dictionary<string, PostMetadataDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetMetadata(
-        [FromBody] GetPostsMetadataRequestDto body,
+        [FromBody] MetadataRequestDto body,
         [FromUserId] Guid? userId
     )
     {
-        if (body.PostIds.Length == 0) return Ok(Array.Empty<PostMetadataDto>());
+        var validator = new MetadataRequestDtoValidator();
+        var validationResult = await validator.ValidateAsync(body);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
-        var postIds = new List<long>(body.PostIds.Length);
-        foreach (var post in body.PostIds.Distinct())
+        if (body.Ids.Length == 0) return Ok(new Dictionary<string, PostMetadataDto>());
+
+        var postIds = new List<long>(body.Ids.Length);
+        foreach (var post in body.Ids.Distinct())
         {
             if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
             postIds.Add(postId);
@@ -221,15 +225,15 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
             : await reactionService.GetPostPermissions(uniquePostIds, userId.Value);
 
         var metadata = uniquePostIds
-            .Select(postId => new PostMetadataDto(
-                postId.ToString(),
+            .ToDictionary(
+                postId => postId.ToString(),
+                postId => new PostMetadataDto(
                 reactionsByPostId.TryGetValue(postId.ToString(), out var postReactions)
                     ? postReactions.Reactions
                     : [],
                 permissionsByPostId.TryGetValue(postId, out var permissions)
                     ? permissions
-                    : emptyPermissions))
-            .ToArray();
+                    : emptyPermissions));
 
         return Ok(metadata);
     }

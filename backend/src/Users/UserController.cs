@@ -112,15 +112,19 @@ public class UsersController(UsersService usersService) : ControllerBase
     }
 
     [HttpPost("metadata")]
-    [ProducesResponseType(typeof(UserMetadataDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Dictionary<string, UserMetadataDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUsersMetadata(
-        [FromBody] GetUsersMetadataRequestDto body,
+        [FromBody] MetadataRequestDto body,
         [FromUserId] Guid? userId)
     {
-        if (body.Usernames.Length == 0) return Ok(Array.Empty<UserMetadataDto>());
+        var validator = new MetadataRequestDtoValidator();
+        var validationResult = await validator.ValidateAsync(body);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
+
+        if (body.Ids.Length == 0) return Ok(new Dictionary<string, UserMetadataDto>());
 
         var metadata = await usersService.GetUsersMetadata(
-            body.Usernames.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            body.Ids.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             userId);
 
         return Ok(metadata);

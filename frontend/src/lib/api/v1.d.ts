@@ -22,7 +22,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -71,7 +71,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -132,7 +132,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -219,6 +219,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/comments/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json-patch+json": components["schemas"]["MetadataRequestDto"];
+                    "application/json": components["schemas"]["MetadataRequestDto"];
+                    "text/json": components["schemas"]["MetadataRequestDto"];
+                    "application/*+json": components["schemas"]["MetadataRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": {
+                            [key: string]: components["schemas"]["CommentMetadataDto"];
+                        };
+                        "application/json": {
+                            [key: string]: components["schemas"]["CommentMetadataDto"];
+                        };
+                        "text/json": {
+                            [key: string]: components["schemas"]["CommentMetadataDto"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/comments/{comment}/replies": {
         parameters: {
             query?: never;
@@ -240,7 +303,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -377,7 +440,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -422,7 +485,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -543,7 +606,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -593,7 +656,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -701,7 +764,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -744,7 +807,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -867,7 +930,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -920,7 +983,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -964,7 +1027,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1014,22 +1077,28 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json-patch+json": components["schemas"]["GetPostsMetadataRequestDto"];
-                    "application/json": components["schemas"]["GetPostsMetadataRequestDto"];
-                    "text/json": components["schemas"]["GetPostsMetadataRequestDto"];
-                    "application/*+json": components["schemas"]["GetPostsMetadataRequestDto"];
+                    "application/json-patch+json": components["schemas"]["MetadataRequestDto"];
+                    "application/json": components["schemas"]["MetadataRequestDto"];
+                    "text/json": components["schemas"]["MetadataRequestDto"];
+                    "application/*+json": components["schemas"]["MetadataRequestDto"];
                 };
             };
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["PostMetadataDto"][];
-                        "application/json": components["schemas"]["PostMetadataDto"][];
-                        "text/json": components["schemas"]["PostMetadataDto"][];
+                        "text/plain": {
+                            [key: string]: components["schemas"]["PostMetadataDto"];
+                        };
+                        "application/json": {
+                            [key: string]: components["schemas"]["PostMetadataDto"];
+                        };
+                        "text/json": {
+                            [key: string]: components["schemas"]["PostMetadataDto"];
+                        };
                     };
                 };
                 /** @description Bad Request */
@@ -1070,7 +1139,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1189,7 +1258,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1231,7 +1300,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1284,7 +1353,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1337,7 +1406,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1388,7 +1457,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1440,22 +1509,28 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json-patch+json": components["schemas"]["GetUsersMetadataRequestDto"];
-                    "application/json": components["schemas"]["GetUsersMetadataRequestDto"];
-                    "text/json": components["schemas"]["GetUsersMetadataRequestDto"];
-                    "application/*+json": components["schemas"]["GetUsersMetadataRequestDto"];
+                    "application/json-patch+json": components["schemas"]["MetadataRequestDto"];
+                    "application/json": components["schemas"]["MetadataRequestDto"];
+                    "text/json": components["schemas"]["MetadataRequestDto"];
+                    "application/*+json": components["schemas"]["MetadataRequestDto"];
                 };
             };
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["UserMetadataDto"][];
-                        "application/json": components["schemas"]["UserMetadataDto"][];
-                        "text/json": components["schemas"]["UserMetadataDto"][];
+                        "text/plain": {
+                            [key: string]: components["schemas"]["UserMetadataDto"];
+                        };
+                        "application/json": {
+                            [key: string]: components["schemas"]["UserMetadataDto"];
+                        };
+                        "text/json": {
+                            [key: string]: components["schemas"]["UserMetadataDto"];
+                        };
                     };
                 };
             };
@@ -1487,7 +1562,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1512,7 +1587,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1551,7 +1626,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1604,7 +1679,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1657,7 +1732,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Success */
+                /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1717,6 +1792,16 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt?: string | null;
+            /** Format: date-time */
+            deletedAt?: string | null;
+        };
+        CommentMetadataDto: {
+            reactions: components["schemas"]["GetReactionsDto"][];
+            permissions: components["schemas"]["CommentPermissionsDto"];
+        };
+        CommentPermissionsDto: {
+            canUpdate: boolean;
+            canDelete: boolean;
         };
         /**
          * Format: int32
@@ -1754,9 +1839,6 @@ export interface components {
             /** Format: int32 */
             contentType: number;
             content: string;
-        };
-        GetPostsMetadataRequestDto: {
-            postIds: string[];
         };
         GetReactionsDto: {
             name: string;
@@ -1804,8 +1886,8 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
-        GetUsersMetadataRequestDto: {
-            usernames: string[];
+        MetadataRequestDto: {
+            ids: string[];
         };
         OAuthLoginDto: {
             token: string;
@@ -1855,12 +1937,11 @@ export interface components {
             deletedAt?: string | null;
         };
         PostMetadataDto: {
-            id: string;
             reactions: components["schemas"]["GetReactionsDto"][];
             permissions: components["schemas"]["PostPermissionsDto"];
         };
         PostPermissionsDto: {
-            canEdit: boolean;
+            canUpdate: boolean;
             canDelete: boolean;
         };
         ProblemDetails: {
@@ -1893,7 +1974,6 @@ export interface components {
             content: string;
         };
         UserMetadataDto: {
-            username: string;
             isSubscribed: boolean;
             isMe: boolean;
         };

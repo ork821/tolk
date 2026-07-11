@@ -21,17 +21,21 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
     private const int RepliesPageSize = 10;
 
     [HttpPost("metadata")]
-    [ProducesResponseType(typeof(CommentMetadataDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Dictionary<string, CommentMetadataDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetMetadata(
-        [FromBody] GetCommentsMetadataRequestDto body,
+        [FromBody] MetadataRequestDto body,
         [FromUserId] Guid? userId
     )
     {
-        if (body.CommentIds.Length == 0) return Ok(Array.Empty<CommentMetadataDto>());
+        var validator = new MetadataRequestDtoValidator();
+        var validationResult = await validator.ValidateAsync(body);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
-        var commentIds = new List<long>(body.CommentIds.Length);
-        foreach (var comment in body.CommentIds.Distinct())
+        if (body.Ids.Length == 0) return Ok(new Dictionary<string, CommentMetadataDto>());
+
+        var commentIds = new List<long>(body.Ids.Length);
+        foreach (var comment in body.Ids.Distinct())
         {
             if (!SnowflakeIdParser.TryParse(comment, out var commentId)) return BadRequest("Invalid comment id");
             commentIds.Add(commentId);
@@ -40,14 +44,21 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         var uniqueCommentIds = commentIds.ToArray();
         var reactions = await reactionService.GetCommentReactions(uniqueCommentIds, userId);
         var reactionsByCommentId = reactions.ToDictionary(x => x.CommentId);
+        var emptyPermissions = new CommentPermissionsDto(false, false);
+        var permissionsByCommentId = userId == null
+            ? new Dictionary<long, CommentPermissionsDto>()
+            : await reactionService.GetCommentPermissions(uniqueCommentIds, userId.Value);
 
         var metadata = uniqueCommentIds
-            .Select(commentId => new CommentMetadataDto(
-                commentId.ToString(),
+            .ToDictionary(
+                commentId => commentId.ToString(),
+                commentId => new CommentMetadataDto(
                 reactionsByCommentId.TryGetValue(commentId.ToString(), out var commentReactions)
                     ? commentReactions.Reactions
-                    : []))
-            .ToArray();
+                    : [],
+                permissionsByCommentId.TryGetValue(commentId, out var permissions)
+                    ? permissions
+                    : emptyPermissions));
 
         return Ok(metadata);
     }

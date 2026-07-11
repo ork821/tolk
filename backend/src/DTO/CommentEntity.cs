@@ -17,7 +17,8 @@ public record CommentEntity(
     long RepliesCount,
     [property: Required]
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    DateTime? DeletedAt
 )
 {
     public static CommentEntity FromReader(NpgsqlDataReader reader)
@@ -33,7 +34,8 @@ public record CommentEntity(
             reader.GetString(5),
             reader.GetInt32(6),
             reader.GetDateTime(7),
-            reader.IsDBNull(8) ? null : reader.GetDateTime(8)
+            reader.IsDBNull(8) ? null : reader.GetDateTime(8),
+            reader.IsDBNull(9) ? null : reader.GetDateTime(9)
         );
     }
 }

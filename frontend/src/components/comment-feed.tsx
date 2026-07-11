@@ -6,6 +6,7 @@ import {useInView} from "react-intersection-observer";
 import {Loader2} from "lucide-react";
 import {CommentNode} from "./comment-node";
 import {client} from "@/lib/api";
+import {useCommentMetadataBatch} from "@/hooks/use-comment-metadata-batch";
 
 
 interface CommentFeedProps {
@@ -54,6 +55,8 @@ export function CommentFeed({postId}: CommentFeedProps) {
     }, [fetchNextPage, hasNextPage, inView, isFetchingNextPage]);
 
     const comments = data?.pages.flatMap(page => page.comments) ?? [];
+    const commentIds = comments.map((comment) => comment.id);
+    const {data: metadataByCommentId = {}} = useCommentMetadataBatch(commentIds);
 
     return (
         <div className="flex flex-col px-4 pb-4">
@@ -71,7 +74,7 @@ export function CommentFeed({postId}: CommentFeedProps) {
 
             {comments.map((comment) => (
                 <div key={comment.id} className="border-b border-border/50 pb-2 last:border-b-0">
-                    <CommentNode comment={comment} />
+                    <CommentNode comment={comment} metadata={metadataByCommentId[comment.id]} />
                 </div>
             ))}
 

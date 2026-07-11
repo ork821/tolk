@@ -3,15 +3,16 @@ using TolkApi.Reactions.DTO;
 
 namespace TolkApi.Comments.DTO;
 
-public class GetCommentsMetadataRequestDto
-{
-    [Required]
-    public required string[] CommentIds { get; init; }
-}
-
 public record CommentMetadataDto(
     [property: Required]
-    string Id,
+    GetReactionsDto[] Reactions,
     [property: Required]
-    GetReactionsDto[] Reactions
+    CommentPermissionsDto Permissions
+);
+
+public record CommentPermissionsDto(
+    [property: Required]
+    bool CanUpdate,
+    [property: Required]
+    bool CanDelete
 );

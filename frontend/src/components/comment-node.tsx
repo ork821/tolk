@@ -1,7 +1,7 @@
 "use client";
 
-import {useState} from "react";
-import {useInfiniteQuery, useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {useEffect, useState} from "react";
+import {useInfiniteQuery, useMutation, useQueryClient} from "@tanstack/react-query";
 import {Flame, Loader2, MessageCircle} from "lucide-react";
 import {cn, formatCompactNumber, formatDateTime} from "@/lib/utils";
 import {Button} from "@/components/ui/button";
@@ -9,24 +9,29 @@ import {SubmitForm} from "@/components/input-form";
 import {
     createReplyComment,
     getCommentReplies,
-    getCommentReactions,
     setCommentReaction,
     type Comment,
+    type CommentMetadataDto,
     type GetReactionsDto,
 } from "@/lib/api";
 import {useAuth} from "@/hooks/use-auth";
 import {UserAvatar} from "@/components/user-avatar";
+import {useCommentMetadataBatch} from "@/hooks/use-comment-metadata-batch";
 
 const defaultReaction = "fire";
 
-export function CommentNode({comment}: {comment: Comment}) {
+export function CommentNode({comment, metadata}: {comment: Comment; metadata?: CommentMetadataDto}) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
     const [localRepliesCount, setLocalRepliesCount] = useState(comment.repliesCount);
+    const [reactions, setReactions] = useState<GetReactionsDto[]>(metadata?.reactions ?? []);
     const {user} = useAuth();
     const queryClient = useQueryClient();
     const repliesQueryKey = ["comments", comment.id, "replies"];
-    const reactionsQueryKey = ["comments", comment.id, "reactions"];
+
+    useEffect(() => {
+        setReactions(metadata?.reactions ?? []);
+    }, [metadata?.reactions]);
 
     const {
         data,
@@ -44,24 +49,17 @@ export function CommentNode({comment}: {comment: Comment}) {
         getNextPageParam: (lastPage) => lastPage?.nextPageToken ?? undefined,
     });
 
-    const {data: reactions = []} = useQuery({
-        queryKey: reactionsQueryKey,
-        queryFn: () => getCommentReactions(comment.id),
-    });
-
     const fireReaction = reactions.find((reaction) => reaction.name === defaultReaction);
     const isFireSelected = fireReaction?.isSelected ?? false;
     const fireCount = fireReaction?.count ?? 0;
 
     const reactionMutation = useMutation({
         mutationFn: (shouldSelect: boolean) => setCommentReaction(comment.id, defaultReaction, shouldSelect),
-        onMutate: async (shouldSelect) => {
-            await queryClient.cancelQueries({queryKey: reactionsQueryKey});
-
-            const previousReactions = queryClient.getQueryData<GetReactionsDto[]>(reactionsQueryKey);
+        onMutate: (shouldSelect) => {
+            const previousReactions = reactions;
             const delta = shouldSelect ? 1 : -1;
 
-            queryClient.setQueryData<GetReactionsDto[]>(reactionsQueryKey, (current = []) => {
+            setReactions((current = []) => {
                 const existing = current.find((reaction) => reaction.name === defaultReaction);
 
                 if (!existing) {
@@ -89,10 +87,10 @@ export function CommentNode({comment}: {comment: Comment}) {
             return {previousReactions};
         },
         onError: (_error, _shouldSelect, context) => {
-            queryClient.setQueryData(reactionsQueryKey, context?.previousReactions);
+            setReactions(context?.previousReactions ?? []);
         },
         onSettled: () => {
-            queryClient.invalidateQueries({queryKey: reactionsQueryKey});
+            queryClient.invalidateQueries({queryKey: ["comments", "metadata"]});
         },
     });
 
@@ -108,6 +106,8 @@ export function CommentNode({comment}: {comment: Comment}) {
 
     const hasReplies = localRepliesCount > 0;
     const replies = data?.pages.flatMap((page) => page.comments) ?? [];
+    const replyIds = replies.map((reply) => reply.id);
+    const {data: metadataByReplyId = {}} = useCommentMetadataBatch(replyIds);
 
     const handleReaction = () => {
         if (!user || reactionMutation.isPending) {
@@ -241,7 +241,7 @@ export function CommentNode({comment}: {comment: Comment}) {
                                     <div className="h-full w-[2px] bg-border transition-colors hover:bg-foreground/20" />
                                 </div>
                                 <div className="absolute left-[18px] top-[30px] h-[2px] w-[30px] bg-border" />
-                                <CommentNode comment={reply} />
+                                <CommentNode comment={reply} metadata={metadataByReplyId[reply.id]} />
                             </div>
                         );
                     })}

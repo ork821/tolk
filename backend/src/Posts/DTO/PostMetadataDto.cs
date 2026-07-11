@@ -3,22 +3,14 @@ using TolkApi.Reactions.DTO;
 
 namespace TolkApi.Posts.DTO;
 
-public class GetPostsMetadataRequestDto
-{
-    [Required]
-    public required string[] PostIds { get; init; }
-}
-
 public record PostPermissionsDto(
     [property: Required]
-    bool CanEdit,
+    bool CanUpdate,
     [property: Required]
     bool CanDelete
 );
 
 public record PostMetadataDto(
-    [property: Required]
-    string Id,
     [property: Required]
     GetReactionsDto[] Reactions,
     [property: Required]
