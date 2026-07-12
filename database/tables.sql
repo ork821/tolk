@@ -1,5 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "ltree";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 CREATE SCHEMA IF NOT EXISTS main;
 CREATE SCHEMA IF NOT EXISTS users;
@@ -28,7 +29,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
--- Пользователи 
+-- Пользователи
 CREATE TABLE IF NOT EXISTS users.users
 (
     id           UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
@@ -41,7 +42,9 @@ CREATE TABLE IF NOT EXISTS users.users
 );
 
 CREATE UNIQUE INDEX idx_users_username_active ON users.users (username) WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_username_prefix_active ON users.users (username text_pattern_ops) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_users_email_active ON users.users (email) WHERE deleted_at IS NULL;
+CREATE INDEX idx_users_display_name_trgm_active ON users.users USING gin (display_name gin_trgm_ops) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS users.profile_info
 (
@@ -143,8 +146,6 @@ CREATE TABLE IF NOT EXISTS groups.groups
     updated_at   TIMESTAMPTZ,
     deleted_at   TIMESTAMPTZ
 );
-ALTER TABLE groups.groups DROP CONSTRAINT IF EXISTS groups_alias_key;
-ALTER TABLE groups.groups DROP CONSTRAINT IF EXISTS groups_display_name_key;
 CREATE UNIQUE INDEX idx_groups_alias_active ON groups.groups (alias) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_groups_display_name_active ON groups.groups (display_name) WHERE deleted_at IS NULL;
 
@@ -208,7 +209,7 @@ CREATE TABLE IF NOT EXISTS main.posts
     parent_post_id   BIGINT REFERENCES main.posts (id) ON DELETE CASCADE, -- Для рекурсии "снизу вверх" и иерархии
     path             ltree,                                               -- Для быстрой выгрузки всего дерева целиком
 
-    title            TEXT NOT NULL,
+    title            TEXT,
     content_type     INT  NOT NULL,
     content          TEXT NOT NULL,
 
@@ -246,7 +247,6 @@ CREATE TABLE IF NOT EXISTS main.user_posts
     user_id UUID REFERENCES users.users (id) ON DELETE CASCADE,
     PRIMARY KEY (post_id, user_id)
 );
-DROP INDEX IF EXISTS main.idx_user_posts_feed;
 CREATE INDEX IF NOT EXISTS idx_user_posts_user_post
     ON main.user_posts (user_id, post_id);
 
@@ -293,7 +293,6 @@ CREATE TABLE IF NOT EXISTS main.post_reaction_stats
 CREATE INDEX IF NOT EXISTS idx_post_reaction_stats_reaction_id
     ON main.post_reaction_stats (reaction_id);
 
-DROP TABLE IF EXISTS main.post_reaction_events;
 
 -- Комментарии
 CREATE TABLE IF NOT EXISTS main.comments
@@ -305,7 +304,7 @@ CREATE TABLE IF NOT EXISTS main.comments
     content           TEXT   NOT NULL,
     parent_comment_id BIGINT REFERENCES main.comments (id) ON DELETE CASCADE,
     path              ltree, -- Путь для вложенности: 'root_id.child_id'
-    replies_count INT DEFAULT 0,
+    visible_replies_count INT DEFAULT 0,
     created_at        TIMESTAMPTZ DEFAULT NOW(),
     updated_at        TIMESTAMPTZ,
     deleted_at        TIMESTAMPTZ
@@ -319,7 +318,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_post_top_level_keyset
     WHERE deleted_at IS NULL AND parent_comment_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_comments_parent_keyset
     ON main.comments (parent_comment_id, created_at DESC, id DESC)
-    WHERE deleted_at IS NULL;
+    WHERE deleted_at IS NULL OR visible_replies_count > 0;
 
 
 -- Реакции на комментарии

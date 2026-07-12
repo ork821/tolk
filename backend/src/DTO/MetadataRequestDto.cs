@@ -4,10 +4,11 @@ using TolkApi.Utility;
 
 namespace TolkApi.DTO;
 
-public record MetadataRequestDto(
-    [property: Required]
-    string[] Ids
-);
+public class MetadataRequestDto
+{
+    [Required]
+    public required string[] Ids { get; init; }
+}
 
 public class MetadataRequestDtoValidator : AbstractValidator<MetadataRequestDto>
 {

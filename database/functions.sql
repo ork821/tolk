@@ -117,6 +117,69 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION users.search_users(p_query TEXT,
+                                              p_limit INT DEFAULT 20,
+                                              p_user_id UUID DEFAULT NULL)
+    RETURNS TABLE
+            (
+                po_username              TEXT,
+                po_display_name          TEXT,
+                po_avatar_url            TEXT,
+                po_subscribers_count     BIGINT,
+                po_is_subscribed         BOOLEAN,
+                po_is_me                 BOOLEAN
+            )
+AS
+$$
+DECLARE
+    v_query TEXT := lower(btrim(p_query));
+BEGIN
+    IF v_query IS NULL OR length(v_query) < 2 THEN
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+        SELECT u.username,
+               u.display_name,
+               ufi.avatar_url,
+               COALESCE(ufi.subscribers_count, 0),
+               CASE
+                   WHEN p_user_id IS NULL THEN FALSE
+                   ELSE EXISTS (
+                       SELECT 1
+                       FROM users.user_subscribe us
+                       WHERE us.from_user_id = p_user_id
+                         AND us.to_user_id = u.id
+                         AND us.deleted_at IS NULL
+                   )
+               END,
+               CASE
+                   WHEN p_user_id IS NULL THEN FALSE
+                   ELSE p_user_id = u.id
+               END
+        FROM users.users u
+                 LEFT JOIN users.profile_info ufi ON ufi.user_id = u.id
+        WHERE u.deleted_at IS NULL
+          AND (
+            u.username = v_query
+                OR u.username LIKE v_query || '%'
+                OR lower(u.display_name) = v_query
+                OR similarity(u.display_name, p_query) > 0.2
+            )
+        ORDER BY
+            CASE
+                WHEN u.username = v_query THEN 0
+                WHEN u.username LIKE v_query || '%' THEN 1
+                WHEN lower(u.display_name) = v_query THEN 2
+                ELSE 3
+            END,
+            similarity(u.display_name, p_query) DESC,
+            COALESCE(ufi.subscribers_count, 0) DESC,
+            u.username
+        LIMIT LEAST(GREATEST(p_limit, 1), 50);
+END;
+$$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION users.get_user_by_id(p_user_id UUID)
     RETURNS TABLE
@@ -546,7 +609,7 @@ DECLARE
     v_is_new      BOOLEAN := FALSE;
     v_username    TEXT;
 BEGIN
-    -- 1. Проверяем, существует ли провайдер
+    -- 1. Проверяем, сущесет ли провайдер
     SELECT id
     INTO v_provider_id
     FROM users.auth_providers
@@ -646,10 +709,10 @@ CREATE OR REPLACE FUNCTION main.create_post(
     p_id BIGINT,
     p_user_id UUID,
     p_parent_post_id BIGINT,
-    p_title TEXT,
     p_content_type INT,
     p_content TEXT,
-    p_comments_enabled BOOLEAN DEFAULT TRUE
+    p_comments_enabled BOOLEAN DEFAULT TRUE,
+    p_title TEXT DEFAULT NULL
 )
     RETURNS TABLE
             (
@@ -679,6 +742,11 @@ BEGIN
         -- Защита от "битых" ссылок
         IF NOT FOUND THEN
             RAISE EXCEPTION 'Parent post % does not exist', p_parent_post_id;
+        END IF;
+
+        IF nlevel(v_parent_path) >= 50 THEN
+            RAISE EXCEPTION 'Maximum post thread depth exceeded'
+                USING ERRCODE = '22023';
         END IF;
 
         -- Склеиваем путь: путь_родителя || свой_id
@@ -720,10 +788,10 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION main.update_post(p_id BIGINT, p_user_id UUID,
-                                            p_title TEXT,
                                             p_content_type INT,
                                             p_content TEXT,
-                                            p_comments_enabled BOOLEAN DEFAULT TRUE)
+                                            p_comments_enabled BOOLEAN DEFAULT TRUE,
+                                            p_title TEXT DEFAULT NULL)
     RETURNS TABLE
             (
                 id             BIGINT,
@@ -1434,8 +1502,9 @@ CREATE OR REPLACE FUNCTION main.get_posts_permissions(p_post_ids BIGINT[], p_use
     RETURNS TABLE
             (
                 po_post_id     BIGINT,
-                po_can_edit    BOOLEAN,
-                po_can_delete  BOOLEAN
+                po_can_update  BOOLEAN,
+                po_can_delete  BOOLEAN,
+                po_can_reply   BOOLEAN
             )
 AS
 $$
@@ -1449,7 +1518,8 @@ BEGIN
                    AND p_user_id IS NOT NULL
                    AND up.user_id = p_user_id
                    AND p.created_at >= now() - interval '24 hours',
-               p.id IS NOT NULL AND p_user_id IS NOT NULL AND up.user_id = p_user_id
+               p.id IS NOT NULL AND p_user_id IS NOT NULL AND up.user_id = p_user_id,
+               p.id IS NOT NULL AND nlevel(p.path) < 50
         FROM requested_posts rp
                  LEFT JOIN main.posts p
                            ON p.id = rp.post_id
@@ -1468,7 +1538,8 @@ CREATE OR REPLACE FUNCTION main.get_comments_permissions(p_comment_ids BIGINT[],
             (
                 po_comment_id  BIGINT,
                 po_can_update  BOOLEAN,
-                po_can_delete  BOOLEAN
+                po_can_delete  BOOLEAN,
+                po_can_reply   BOOLEAN
             )
 AS
 $$
@@ -1482,7 +1553,8 @@ BEGIN
                    AND c.author_id = p_user_id
                    AND c.created_at >= NOW() - INTERVAL '24 hours',
                c.id IS NOT NULL
-                   AND c.author_id = p_user_id
+                   AND c.author_id = p_user_id,
+               c.id IS NOT NULL AND nlevel(c.path) < 7
         FROM requested_comments rc
                  LEFT JOIN main.comments c
                            ON c.id = rc.comment_id
@@ -1639,7 +1711,7 @@ CREATE OR REPLACE FUNCTION main.get_reply_comments(
                 po_author_avatar_url   TEXT,
                 po_content_type        INT,
                 po_content             TEXT,
-                po_replies_count       INT,
+                po_visible_replies_count INT,
                 po_created_at          TIMESTAMPTZ,
                 po_updated_at          TIMESTAMPTZ,
                 po_deleted_at          TIMESTAMPTZ
@@ -1655,7 +1727,7 @@ BEGIN
                CASE WHEN c.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
                CASE WHEN c.deleted_at IS NULL THEN c.content_type ELSE 0 END,
                CASE WHEN c.deleted_at IS NULL THEN c.content ELSE '' END,
-               c.replies_count,
+               c.visible_replies_count,
                c.created_at,
                c.updated_at,
                c.deleted_at
@@ -1663,7 +1735,7 @@ BEGIN
                  LEFT JOIN users.users u ON u.id = c.author_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
         WHERE c.parent_comment_id = p_parent_comment_id
-          AND (c.deleted_at IS NULL OR c.replies_count > 0)
+          AND (c.deleted_at IS NULL OR c.visible_replies_count > 0)
           AND (
             p_last_created_at IS NULL
                 OR p_last_id IS NULL
@@ -1690,7 +1762,7 @@ CREATE OR REPLACE FUNCTION main.get_post_comments(
                 po_author_avatar_url   TEXT,
                 po_content_type        INT,
                 po_content             TEXT,
-                po_replies_count       INT,
+                po_visible_replies_count INT,
                 po_created_at          TIMESTAMPTZ,
                 po_updated_at          TIMESTAMPTZ,
                 po_deleted_at          TIMESTAMPTZ
@@ -1706,7 +1778,7 @@ BEGIN
                CASE WHEN c.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
                CASE WHEN c.deleted_at IS NULL THEN c.content_type ELSE 0 END,
                CASE WHEN c.deleted_at IS NULL THEN c.content ELSE '' END,
-               c.replies_count,
+               c.visible_replies_count,
                c.created_at,
                c.updated_at,
                c.deleted_at
@@ -1715,7 +1787,7 @@ BEGIN
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
         WHERE c.post_id = p_post_id
           AND c.parent_comment_id IS NULL
-          AND (c.deleted_at IS NULL OR c.replies_count > 0)
+          AND (c.deleted_at IS NULL OR c.visible_replies_count > 0)
           AND (
             p_last_created_at IS NULL
                 OR p_last_id IS NULL
@@ -1814,6 +1886,11 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Parent comment id % not found', p_parent_comment_id;
     END IF;
+
+    IF nlevel(v_parent_path) >= 7 THEN
+        RAISE EXCEPTION 'Maximum comment nesting depth exceeded'
+            USING ERRCODE = '22023';
+    END IF;
     
     v_new_path := v_parent_path || p_comment_id::text::ltree;
 
@@ -1825,7 +1902,7 @@ BEGIN
             INTO v_created_at, v_updated_at;
 
     UPDATE main.comments
-    SET replies_count = replies_count + 1
+    SET visible_replies_count = visible_replies_count + 1
     WHERE id = p_parent_comment_id;
 
     RETURN QUERY SELECT p_comment_id,
@@ -1880,7 +1957,22 @@ DECLARE
     v_parent_comment_id BIGINT;
     v_post_id           BIGINT;
     v_deleted           BOOLEAN;
+    v_has_visible_descendants BOOLEAN;
+    v_current_parent_id BIGINT;
+    v_next_parent_id BIGINT;
+    v_parent_deleted_at TIMESTAMPTZ;
+    v_parent_visible_replies_count INT;
 BEGIN
+
+    SELECT EXISTS (
+        SELECT 1
+        FROM main.comments descendant
+                 JOIN main.comments target ON descendant.path <@ target.path
+        WHERE target.id = p_comment_id
+          AND descendant.id <> target.id
+          AND descendant.deleted_at IS NULL
+    )
+    INTO v_has_visible_descendants;
 
     UPDATE main.comments
     SET deleted_at = NOW()
@@ -1892,17 +1984,43 @@ BEGIN
 
     v_deleted := FOUND;
 
-    IF v_deleted AND v_parent_comment_id IS NULL THEN
+    IF NOT v_deleted THEN
+        RETURN FALSE;
+    END IF;
+
+    IF v_has_visible_descendants THEN
+        RETURN TRUE;
+    END IF;
+
+    IF v_parent_comment_id IS NULL THEN
         UPDATE main.post_stats
         SET comments_count = GREATEST(comments_count - 1, 0)
         WHERE post_id = v_post_id;
-    ELSIF v_deleted THEN
-        UPDATE main.comments
-        SET replies_count = GREATEST(replies_count - 1, 0)
-        WHERE id = v_parent_comment_id;
+    ELSE
+        v_current_parent_id := v_parent_comment_id;
+
+        LOOP
+            UPDATE main.comments
+            SET visible_replies_count = GREATEST(visible_replies_count - 1, 0)
+            WHERE id = v_current_parent_id
+            RETURNING parent_comment_id, deleted_at, visible_replies_count
+                INTO v_next_parent_id, v_parent_deleted_at, v_parent_visible_replies_count;
+
+            EXIT WHEN NOT FOUND;
+            EXIT WHEN v_parent_deleted_at IS NULL OR v_parent_visible_replies_count > 0;
+
+            IF v_next_parent_id IS NULL THEN
+                UPDATE main.post_stats
+                SET comments_count = GREATEST(comments_count - 1, 0)
+                WHERE post_id = v_post_id;
+                EXIT;
+            END IF;
+
+            v_current_parent_id := v_next_parent_id;
+        END LOOP;
     END IF;
 
-    RETURN v_deleted;
+    RETURN TRUE;
 END;
 
 $$ language plpgsql;

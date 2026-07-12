@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
 using TolkApi.Comments;
 using TolkApi.DTO;
 using TolkApi.Posts.DTO;
@@ -29,11 +30,13 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     {
         // Логика создания поста (в группе или на личной стене)
         
+        var validationResult = await new CreatePostDtoValidator().ValidateAsync(createDto);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
+
         var newPostId = idGenerator.CreateId();
         var createPostResult = await service.CreatePost(newPostId, 
             userId, 
             null, 
-            createDto.Title,
             (int)createDto.Type, 
             createDto.Content);
         
@@ -65,15 +68,25 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     )
     {
         // Логика создания поста (в группе или на личной стене)
+        var validationResult = await new CreatePostDtoValidator().ValidateAsync(createDto);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
+
         if (!SnowflakeIdParser.TryParse(post, out var parentPostId)) return BadRequest("Invalid post id");
 
         var newPostId = idGenerator.CreateId();
-        var createPostResult = await service.CreatePost(newPostId, 
-            userId, 
-            parentPostId, 
-            createDto.Title,
-            (int)createDto.Type, 
-            createDto.Content);
+        CreateUpdatePostDto? createPostResult;
+        try
+        {
+            createPostResult = await service.CreatePost(newPostId, 
+                userId, 
+                parentPostId, 
+                (int)createDto.Type, 
+                createDto.Content);
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.InvalidParameterValue)
+        {
+            return BadRequest("Maximum post thread depth exceeded");
+        }
         
         if (createPostResult == null) return BadRequest("Failed to create post");
         return Created($"/api/v1/posts/{newPostId}", createPostResult);
@@ -101,10 +114,13 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         [FromBody] UpdatePostBodyDto updateDto,
         [FromUserId] Guid userId)
     {
+        var validationResult = await new UpdatePostDtoValidator().ValidateAsync(updateDto);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
+
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
         var updatePostResult =
-            await service.UpdatePost(postId, userId, updateDto.Title, (int)updateDto.Type, updateDto.Content);
+            await service.UpdatePost(postId, userId, (int)updateDto.Type, updateDto.Content);
         if (updatePostResult == null) return BadRequest("Failed to update post");
         return Ok(updatePostResult);
     }
@@ -183,7 +199,7 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
             postId,
             id,
             userId,
-            body.Type,
+            (int)body.Type,
             body.Content);
         if (createResult == null)
         {
@@ -219,7 +235,7 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         var reactions = await reactionService.GetPostReactions(postIds.ToArray(), userId);
         var reactionsByPostId = reactions.ToDictionary(x => x.PostId);
 
-        var emptyPermissions = new PostPermissionsDto(false, false);
+        var emptyPermissions = new PostPermissionsDto(false, false, false);
         var permissionsByPostId = userId == null
             ? new Dictionary<long, PostPermissionsDto>()
             : await reactionService.GetPostPermissions(uniquePostIds, userId.Value);
@@ -310,9 +326,6 @@ public enum ContentType
 public class CreatePostBodyDto
 {
     [Required]
-    public required string Title { get; init; }
-
-    [Required]
     public required ContentType Type { get; init; }
 
     [Required]
@@ -323,18 +336,11 @@ public class CreatePostDtoValidator : AbstractValidator<CreatePostBodyDto>
 {
     public CreatePostDtoValidator()
     {
-        RuleFor(x => x.Title)
-            .NotEmpty().WithMessage("Empty title is not allowed")
-            .MinimumLength(10).WithMessage("Minimum length is 10 characters")
-            .MaximumLength(255).WithMessage("Maximum length is 255 characters");
-
         RuleFor(x => x.Type)
-            .NotEmpty()
             .IsInEnum()
             .WithMessage("Type not valid");
 
         RuleFor(x => x.Content)
-            .NotEmpty()
             .Length(10, 500)
             .WithMessage("Content length must be between 10 and 500 characters");
     }
@@ -342,9 +348,6 @@ public class CreatePostDtoValidator : AbstractValidator<CreatePostBodyDto>
 
 public class UpdatePostBodyDto
 {
-    [Required]
-    public required string Title { get; init; }
-
     [Required]
     public required ContentType Type { get; init; }
 
@@ -356,19 +359,11 @@ public class UpdatePostDtoValidator : AbstractValidator<UpdatePostBodyDto>
 {
     public UpdatePostDtoValidator()
     {
-        RuleFor(x => x.Title)
-            .NotEmpty().WithMessage("Empty title is not allowed")
-            .MinimumLength(10).WithMessage("Minimum length is 10 characters")
-            .MaximumLength(255).WithMessage("Maximum length is 255 characters");
-
-
         RuleFor(x => x.Type)
-            .NotEmpty()
             .IsInEnum()
             .WithMessage("Type not valid");
 
         RuleFor(x => x.Content)
-            .NotEmpty()
             .Length(10, 500)
             .WithMessage("Content length must be between 10 and 500 characters");
     }
@@ -376,8 +371,6 @@ public class UpdatePostDtoValidator : AbstractValidator<UpdatePostBodyDto>
 
 public class CreateCommentBodyDto
 {
-    public string? ParentCommentId { get; init; }
-
     [Required]
     public required ContentType Type { get; init; }
 

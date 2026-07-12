@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
 using TolkApi.Comments.DTO;
 using TolkApi.DTO;
 using TolkApi.Posts;
@@ -44,7 +45,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         var uniqueCommentIds = commentIds.ToArray();
         var reactions = await reactionService.GetCommentReactions(uniqueCommentIds, userId);
         var reactionsByCommentId = reactions.ToDictionary(x => x.CommentId);
-        var emptyPermissions = new CommentPermissionsDto(false, false);
+        var emptyPermissions = new CommentPermissionsDto(false, false, false);
         var permissionsByCommentId = userId == null
             ? new Dictionary<long, CommentPermissionsDto>()
             : await reactionService.GetCommentPermissions(uniqueCommentIds, userId.Value);
@@ -56,9 +57,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
                 reactionsByCommentId.TryGetValue(commentId.ToString(), out var commentReactions)
                     ? commentReactions.Reactions
                     : [],
-                permissionsByCommentId.TryGetValue(commentId, out var permissions)
-                    ? permissions
-                    : emptyPermissions));
+                permissionsByCommentId.GetValueOrDefault(commentId, emptyPermissions)));
 
         return Ok(metadata);
     }
@@ -112,16 +111,24 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         var validateResult = await validator.ValidateAsync(body);
         if (!validateResult.IsValid)
         {
-            return BadRequest();
+            return BadRequest(validateResult.ToString());
         }
 
         var id = idGenerator.CreateId();
-        var createResult = await commentsService.CreateReplyComment(
-            id,
-            commentId,
-            userId,
-            body.Type,
-            body.Content);
+        CreateUpdateCommentDto? createResult;
+        try
+        {
+            createResult = await commentsService.CreateReplyComment(
+                id,
+                commentId,
+                userId,
+                (int)body.Type,
+                body.Content);
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.InvalidParameterValue)
+        {
+            return BadRequest("Maximum comment nesting depth exceeded");
+        }
 
         if (createResult == null)
         {
@@ -153,7 +160,7 @@ public class CommentsController(CommentsService commentsService, SnowflakeIdGene
         var updateResult = await commentsService.UpdateComment(
             commentId,
             userId,
-            body.Type,
+            (int)body.Type,
             body.Content);
         
         if (updateResult == null)
@@ -277,12 +284,10 @@ public class UpdateCommentDtoValidator : AbstractValidator<UpdateCommentBodyDto>
     public UpdateCommentDtoValidator()
     {
         RuleFor(x => x.Type)
-            .NotEmpty()
             .IsInEnum()
             .WithMessage("Type not valid");
 
         RuleFor(x => x.Content)
-            .NotEmpty()
             .Length(10, 500)
             .WithMessage("Content length must be between 10 and 500 characters");
     }
@@ -293,12 +298,10 @@ public class CreateReplyCommentDtoValidator : AbstractValidator<CreateReplyComme
     public CreateReplyCommentDtoValidator()
     {
         RuleFor(x => x.Type)
-            .NotEmpty()
             .IsInEnum()
             .WithMessage("Type not valid");
 
         RuleFor(x => x.Content)
-            .NotEmpty()
             .Length(10, 500)
             .WithMessage("Content length must be between 10 and 500 characters");
     }

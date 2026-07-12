@@ -136,6 +136,14 @@ export type CreateReplyCommentPayload = CreateReplyCommentBodyDto;
 export type User = GetUserByUsernameDto;
 export type Post = PostDto;
 export type Comment = CommentEntity;
+export type SearchUser = {
+    username: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    subscribersCount: number;
+    isSubscribed: boolean;
+    isMe: boolean;
+};
 export type PostsPageResponse = PagedPostsDto;
 export type CommentsPageResponse = PagedCommentsDto;
 export type PostMetadataByPostId = Record<string, PostMetadataDto>;
@@ -145,20 +153,13 @@ export type FollowListUser = (GetUserSubscribesDto | GetUserSubscribersDto) & {
     isSubscribed?: boolean;
 };
 
-function createPostTitle(content: string) {
-    const normalized = content.trim().replace(/\s+/g, " ");
-    const title = normalized.length > 80 ? `${normalized.slice(0, 77)}...` : normalized;
 
-    return title.length >= 10 ? title : title.padEnd(10, ".");
-}
 
 export async function createPost({
     content,
-    title,
     parentPostId = null,
 }: {
     content: string;
-    title?: string;
     parentPostId?: string | null;
 }): Promise<CreateUpdatePostDto> {
     const trimmedContent = content.trim();
@@ -168,7 +169,6 @@ export async function createPost({
     }
 
     const body: CreatePostBodyDto = {
-        title: title?.trim() || createPostTitle(trimmedContent),
         type: 0,
         content: trimmedContent,
     };
@@ -202,13 +202,12 @@ export async function createPost({
         throw new Error("Failed to create post");
     }
 
-    return data;
+    return data ?? {};
 }
 
 export async function createComment({
     postId,
-    content,
-    parentCommentId = null,
+    content
 }: {
     postId: string;
     content: string;
@@ -228,7 +227,6 @@ export async function createComment({
             },
         },
         body: {
-            parentCommentId,
             type: 0,
             content: trimmedContent,
         },
@@ -242,7 +240,7 @@ export async function createComment({
         throw new Error("Failed to create comment");
     }
 
-    return data;
+    return data ?? {};
 }
 
 export async function createReplyComment({
@@ -285,7 +283,7 @@ export async function createReplyComment({
 export async function getCommentReplies(
     commentId: string,
     {nextPageToken}: {nextPageToken: string | null}
-): Promise<PagedCommentsDto> {
+): Promise<CommentsPageResponse> {
     const {data, error} = await client.GET("/v1/comments/{comment}/replies", {
         params: {
             path: {
@@ -322,6 +320,21 @@ export async function getCommentReactions(commentId: string): Promise<GetReactio
     }
 
     return data ?? [];
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+    const {error} = await client.DELETE("/v1/comments/{comment}", {
+        params: {
+            path: {
+                comment: commentId,
+                version: "1",
+            },
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
 }
 
 export async function getCommentsMetadata(commentIds: string[]): Promise<CommentMetadataByCommentId> {
@@ -556,4 +569,28 @@ export async function setUserFollow(username: string, shouldFollow: boolean) {
     if (error) {
         throw error;
     }
+}
+
+export async function searchUsers(query: string): Promise<SearchUser[]> {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+        return [];
+    }
+
+    const searchParams = new URLSearchParams({
+        q: normalizedQuery,
+    });
+
+    const response = await fetch(`${apiBaseUrl}/v1/users/search?${searchParams.toString()}`, {
+        credentials: "include",
+        headers: getAccessToken()
+            ? {Authorization: `Bearer ${getAccessToken()}`}
+            : undefined,
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to search users");
+    }
+
+    return await response.json() as SearchUser[];
 }

@@ -216,7 +216,7 @@ public class ReactionService(DatabaseContext databaseContext)
         var permissionsByPostId = new Dictionary<long, TolkApi.Posts.DTO.PostPermissionsDto>();
         foreach (var postId in postIds)
         {
-            permissionsByPostId.TryAdd(postId, new TolkApi.Posts.DTO.PostPermissionsDto(false, false));
+            permissionsByPostId.TryAdd(postId, new TolkApi.Posts.DTO.PostPermissionsDto(false, false, false));
         }
 
         if (postIds.Length == 0)
@@ -235,7 +235,8 @@ public class ReactionService(DatabaseContext databaseContext)
         {
             permissionsByPostId[reader.GetInt64(0)] = new TolkApi.Posts.DTO.PostPermissionsDto(
                 reader.GetBoolean(1),
-                reader.GetBoolean(2));
+                reader.GetBoolean(2),
+                reader.GetBoolean(3));
         }
 
         return permissionsByPostId;
@@ -246,7 +247,7 @@ public class ReactionService(DatabaseContext databaseContext)
         var permissionsByCommentId = new Dictionary<long, CommentPermissionsDto>();
         foreach (var commentId in commentIds)
         {
-            permissionsByCommentId.TryAdd(commentId, new CommentPermissionsDto(false, false));
+            permissionsByCommentId.TryAdd(commentId, new CommentPermissionsDto(false, false, false));
         }
 
         if (commentIds.Length == 0)
@@ -265,7 +266,8 @@ public class ReactionService(DatabaseContext databaseContext)
         {
             permissionsByCommentId[reader.GetInt64(0)] = new CommentPermissionsDto(
                 reader.GetBoolean(1),
-                reader.GetBoolean(2));
+                reader.GetBoolean(2),
+                reader.GetBoolean(3));
         }
 
         return permissionsByCommentId;

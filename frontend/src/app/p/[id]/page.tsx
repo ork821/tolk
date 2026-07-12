@@ -49,9 +49,11 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
     const mainPost = data ? data[data.length - 1] : undefined;
     const postIds = React.useMemo(() => data?.map((post) => post.id) ?? [], [data]);
     const {data: metadataByPostId = {}} = usePostMetadataBatch(postIds);
+    const mainPostMetadata = mainPost ? metadataByPostId[mainPost.id] : undefined;
+    const canReplyToPost = Boolean(user && mainPostMetadata?.permissions?.canReply);
 
     const handleCreatePost = async (content: string) => {
-        if (!mainPost) {
+        if (!mainPost || !canReplyToPost) {
             return;
         }
 
@@ -98,16 +100,22 @@ export default function PostThreadPage({params}: {params: Promise<{id: string}>}
                         <PostCard
                             post={mainPost}
                             showAvatar={false}
-                            metadata={metadataByPostId[mainPost.id]}
+                            metadata={mainPostMetadata}
                         />
                     </ThreadMainPost>
 
-                    {user && (
+                    {canReplyToPost && (
                         <SubmitForm
                             placeholder="Опубликуйте ваш ответ"
                             submitLabel="Ответить"
                             onSubmit={handleCreatePost}
                         />
+                    )}
+
+                    {user && !canReplyToPost && (
+                        <div className="border-t px-4 py-4 text-sm text-muted-foreground">
+                            Достигнут предел глубины треда.
+                        </div>
                     )}
 
                     <div className="mt-6 flex flex-col border-t">

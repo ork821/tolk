@@ -1,28 +1,24 @@
-﻿"use client";
+"use client";
 
 import {useEffect, useMemo} from "react";
 import {useRouter} from "next/navigation";
 import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
-
-import {PostCardSkeleton} from "@/components/post-card-skeleton";
 import {internalNavigationStorageKey, PostCard} from "@/components/post-card";
-import type {PostsPageResponse} from "@/lib/api";
+import {PostCardSkeleton} from "@/components/post-card-skeleton";
 import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
+import type {Post, PostMetadataByPostId, PostsPageResponse} from "@/lib/api";
 
 export type {PostsPageResponse} from "@/lib/api";
 
 interface PostFeedProps {
-    queryKey: string[]; // Ключ для кеша (например: ['posts', 'feed'] или ['posts', 'user', '123'])
-    fetchFn: ({ nextPageToken }: { nextPageToken: string | null }) => Promise<PostsPageResponse>;
+    queryKey: string[];
+    fetchFn: ({nextPageToken}: {nextPageToken: string | null}) => Promise<PostsPageResponse>;
 }
 
-export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
+export function PostFeed({queryKey, fetchFn}: PostFeedProps) {
     const router = useRouter();
-    // Настраиваем Intersection Observer для якоря внизу
-    const { ref, inView } = useInView({
-        rootMargin: "600px", // Начинаем грузить заранее
-    });
+    const {ref, inView} = useInView({rootMargin: "600px"});
 
     const {
         data,
@@ -36,66 +32,93 @@ export function PostFeed({ queryKey, fetchFn }: PostFeedProps) {
         initialPageParam: null as string | null,
         getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
     });
-    const allPosts = useMemo(() => data?.pages.flatMap((page) => page.posts) ?? [], [data]);
-    const postIds = useMemo(() => allPosts.map((post) => post.id), [allPosts]);
+
+    const posts = useMemo(() => data?.pages.flatMap((page) => page.posts) ?? [], [data]);
+    const postIds = useMemo(() => posts.map((post) => post.id), [posts]);
     const {data: metadataByPostId = {}} = usePostMetadataBatch(postIds);
 
-    // Эффект: загружаем следующую страницу, когда якорь появляется на экране
     useEffect(() => {
         if (inView && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
+            void fetchNextPage();
         }
-    }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [fetchNextPage, hasNextPage, inView, isFetchingNextPage]);
 
-    // 1. Состояние ПЕРВОЙ загрузки (когда данных еще нет вообще)
     if (status === "pending") {
-        return (
-            <div className="flex flex-col gap-0 sm:gap-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <PostCardSkeleton key={i} />
-                ))}
-            </div>
-        );
+        return <PostFeedSkeletonList />;
     }
 
-    // 2. Состояние Ошибки
     if (status === "error") {
-        return <div className="p-4 text-center text-destructive">Не удалось загрузить ленту</div>;
+        return <PostFeedMessage className="text-destructive" text="Не удалось загрузить ленту" />;
     }
 
-    // 3. Состояние Пустоты
-    if (allPosts.length === 0) {
-        return <div className="p-10 text-center text-muted-foreground">Здесь пока нет постов.</div>;
+    if (posts.length === 0) {
+        return <PostFeedMessage className="py-10" text="Здесь пока нет постов." />;
     }
+
     return (
-        <div className="flex flex-col w-full gap-0 sm:gap-4">
-            {/* Рендерим посты */}
-            {allPosts.map((post) => (
+        <div className="flex w-full flex-col gap-0 sm:gap-4">
+            <PostFeedItems
+                posts={posts}
+                metadataByPostId={metadataByPostId}
+                onOpenPost={(postId) => {
+                    window.sessionStorage.setItem(internalNavigationStorageKey, "1");
+                    router.push(`/p/${postId}`);
+                }}
+            />
+
+            {hasNextPage && <PostFeedNextPageLoader refCallback={ref} />}
+
+            {!hasNextPage && <PostFeedMessage text="Вы посмотрели все посты" />}
+        </div>
+    );
+}
+
+function PostFeedItems({
+    posts,
+    metadataByPostId,
+    onOpenPost,
+}: {
+    posts: Post[];
+    metadataByPostId: PostMetadataByPostId;
+    onOpenPost: (postId: string) => void;
+}) {
+    return (
+        <>
+            {posts.map((post) => (
                 <PostCard
                     key={post.id}
                     post={post}
                     metadata={metadataByPostId[post.id]}
-                    onClick={() => {
-                        window.sessionStorage.setItem(internalNavigationStorageKey, "1");
-                        router.push(`/p/${post.id}`);
-                    }}
+                    onClick={() => onOpenPost(post.id)}
                 />
             ))}
+        </>
+    );
+}
 
-            {/* Якорь + Скелетоны для дозагрузки следующих страниц */}
-            {hasNextPage && (
-                <div ref={ref} className="flex flex-col gap-0 sm:gap-4 mt-0 sm:mt-4">
-                    <PostCardSkeleton />
-                    <PostCardSkeleton />
-                </div>
-            )}
+function PostFeedSkeletonList() {
+    return (
+        <div className="flex flex-col gap-0 sm:gap-4">
+            {Array.from({length: 5}).map((_, index) => (
+                <PostCardSkeleton key={index} />
+            ))}
+        </div>
+    );
+}
 
-            {/* Конец ленты */}
-            {!hasNextPage && (
-                <div className="py-8 text-center text-sm text-muted-foreground font-medium">
-                    Вы посмотрели все посты
-                </div>
-            )}
+function PostFeedNextPageLoader({refCallback}: {refCallback: (node?: Element | null) => void}) {
+    return (
+        <div ref={refCallback} className="mt-0 flex flex-col gap-0 sm:mt-4 sm:gap-4">
+            <PostCardSkeleton />
+            <PostCardSkeleton />
+        </div>
+    );
+}
+
+function PostFeedMessage({text, className}: {text: string; className?: string}) {
+    return (
+        <div className={`py-8 text-center text-sm font-medium text-muted-foreground ${className ?? ""}`}>
+            {text}
         </div>
     );
 }

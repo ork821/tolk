@@ -7,7 +7,9 @@ public record PostPermissionsDto(
     [property: Required]
     bool CanUpdate,
     [property: Required]
-    bool CanDelete
+    bool CanDelete,
+    [property: Required]
+    bool CanReply
 );
 
 public record PostMetadataDto(

@@ -6,18 +6,28 @@ namespace TolkApi.Posts;
 
 public class PostsService(DatabaseContext databaseContext)
 {
-    public async Task<CreateUpdatePostDto?> CreatePost(long id, Guid userId, long? parentPostId, string title,
-        int contentType, string content)
+    public async Task<CreateUpdatePostDto?> CreatePost(long id, Guid userId, long? parentPostId, int contentType,
+        string content)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM main.create_post(@id, @userId, @parentId, @title, @contentType, @content)");
+            .CreateCommand("""
+                           SELECT *
+                           FROM main.create_post(
+                               p_id => @id,
+                               p_user_id => @userId,
+                               p_parent_post_id => @parentId,
+                               p_content_type => @contentType,
+                               p_content => @content,
+                               p_title => @title
+                           )
+                           """);
 
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@userId", userId);
         command.Parameters.AddWithValue("@parentId", parentPostId != null ? parentPostId : DBNull.Value);
-        command.Parameters.AddWithValue("@title", title);
         command.Parameters.AddWithValue("@contentType", contentType);
         command.Parameters.AddWithValue("@content", content);
+        command.Parameters.AddWithValue("@title", DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -25,7 +35,7 @@ public class PostsService(DatabaseContext databaseContext)
             return new CreateUpdatePostDto(
                 reader.GetInt64(0).ToString(),
                 reader.IsDBNull(1) ? null : reader.GetInt64(1).ToString(),
-                reader.GetString(2),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.GetInt32(3),
                 reader.GetString(4)
             );
@@ -34,17 +44,25 @@ public class PostsService(DatabaseContext databaseContext)
     }
 
 
-    public async Task<CreateUpdatePostDto?> UpdatePost(long id, Guid userId, string title, int contentType,
-        string content)
+    public async Task<CreateUpdatePostDto?> UpdatePost(long id, Guid userId, int contentType, string content)
     {
         await using var command = databaseContext.GetCon()
-            .CreateCommand(@"SELECT * FROM main.update_post(@id, @userId, @title, @contentType, @content)");
+            .CreateCommand("""
+                           SELECT *
+                           FROM main.update_post(
+                               p_id => @id,
+                               p_user_id => @userId,
+                               p_content_type => @contentType,
+                               p_content => @content,
+                               p_title => @title
+                           )
+                           """);
 
         command.Parameters.AddWithValue("@id", id);
         command.Parameters.AddWithValue("@userId", userId);
-        command.Parameters.AddWithValue("@title", title);
         command.Parameters.AddWithValue("@contentType", contentType);
         command.Parameters.AddWithValue("@content", content);
+        command.Parameters.AddWithValue("@title", DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -52,7 +70,7 @@ public class PostsService(DatabaseContext databaseContext)
             return new CreateUpdatePostDto(
                 reader.GetInt64(0).ToString(),
                 reader.IsDBNull(1) ? null : reader.GetInt64(1).ToString(),
-                reader.GetString(2),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.GetInt32(3),
                 reader.GetString(4)
             );

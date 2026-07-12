@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, {type ComponentType} from "react";
 import Link from "next/link";
 import {usePathname, useRouter} from "next/navigation";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
@@ -8,26 +8,23 @@ import {Check, ExternalLink, Flame, MessageCircle, Pencil, Repeat2, Trash2, X} f
 import {Button} from "@/components/ui/button";
 import {Card, CardContent, CardFooter, CardHeader} from "@/components/ui/card";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
-import {client, type Post, type PostMetadataByPostId, type PostMetadataDto} from "@/lib/api";
-import {cn, formatCompactNumber} from "@/lib/utils";
 import {UserAvatar} from "@/components/user-avatar";
+import {client, type GetReactionsDto, type Post, type PostMetadataByPostId, type PostMetadataDto} from "@/lib/api";
+import {cn, formatCompactNumber} from "@/lib/utils";
 
 export type PostCardProps = Post;
 
 const defaultReaction = "fire";
 export const internalNavigationStorageKey = "tolk.hasInternalNavigation";
 
-export function PostCard({
-    post,
-    showAvatar = true,
-    metadata,
-    onClick,
-}: {
+interface PostCardComponentProps {
     post: PostCardProps;
     showAvatar?: boolean;
     metadata?: PostMetadataDto;
     onClick?: () => void;
-}) {
+}
+
+export function PostCard({post, showAvatar = true, metadata, onClick}: PostCardComponentProps) {
     const router = useRouter();
     const pathname = usePathname();
     const queryClient = useQueryClient();
@@ -45,16 +42,118 @@ export function PostCard({
     const fireReaction = reactions.find((reaction) => reaction.name === defaultReaction);
     const isFireSelected = fireReaction?.isSelected ?? false;
     const fireCount = fireReaction?.count ?? 0;
-    const permissions = metadata?.permissions;
-    const canEdit = permissions?.canUpdate ?? false;
-    const canDelete = permissions?.canDelete ?? false;
+    const canEdit = metadata?.permissions?.canUpdate ?? false;
+    const canDelete = metadata?.permissions?.canDelete ?? false;
 
-    const reactionMutation = useMutation({
+    const reactionMutation = usePostReactionMutation(post.id, queryClient);
+    const updateMutation = usePostUpdateMutation({
+        post,
+        queryClient,
+        onUpdated: (nextContent) => {
+            setContent(nextContent);
+            setDraftContent(nextContent);
+            setIsEditing(false);
+        },
+    });
+    const deleteMutation = usePostDeleteMutation({
+        postId: post.id,
+        pathname,
+        router,
+        queryClient,
+        onDeleted: () => setIsDeleted(true),
+    });
+
+    if (isDeleted) {
+        return null;
+    }
+
+    const isClickable = Boolean(onClick);
+    const isBusy = updateMutation.isPending || deleteMutation.isPending;
+
+    return (
+        <Card
+            className={cn(
+                "group z-20 w-full rounded-2xl border border-border/50 text-left shadow-sm transition-all duration-300 sm:rounded-3xl",
+                isClickable && "cursor-pointer hover:bg-accent/5 hover:shadow-md"
+            )}
+            onClick={onClick}
+        >
+            <CardHeader className="flex flex-row items-start gap-4 p-4 pb-2">
+                {showAvatar && (
+                    <UserAvatar
+                        username={post.author.username}
+                        avatarUrl={post.author.avatarUrl}
+                        className="size-10 shrink-0"
+                    />
+                )}
+
+                <div className="min-w-0 flex-1">
+                    <PostHeader
+                        post={post}
+                        canEdit={canEdit}
+                        canDelete={canDelete}
+                        isBusy={isBusy}
+                        onEdit={(event) => {
+                            event.stopPropagation();
+                            setDraftContent(content);
+                            setIsEditing(true);
+                        }}
+                        onDelete={(event) => {
+                            event.stopPropagation();
+                            if (deleteMutation.isPending || !window.confirm("Удалить пост?")) return;
+                            deleteMutation.mutate();
+                        }}
+                    />
+
+                    <CardContent className="mt-1 p-0">
+                        {isEditing ? (
+                            <PostEditor
+                                content={content}
+                                draftContent={draftContent}
+                                isSaving={updateMutation.isPending}
+                                onChange={setDraftContent}
+                                onCancel={(event) => {
+                                    event.stopPropagation();
+                                    setDraftContent(content);
+                                    setIsEditing(false);
+                                }}
+                                onSave={(event) => {
+                                    event.stopPropagation();
+                                    const nextContent = draftContent.trim();
+                                    if (!canSavePostEdit(content, nextContent) || updateMutation.isPending) return;
+                                    updateMutation.mutate(nextContent);
+                                }}
+                            />
+                        ) : (
+                            <PostContent content={content} />
+                        )}
+                    </CardContent>
+
+                    <PostFooter
+                        commentsCount={post.commentsCount}
+                        repliesCount={post.repliesCount}
+                        fireCount={fireCount}
+                        isFireSelected={isFireSelected}
+                        onReaction={(event) => {
+                            event.stopPropagation();
+                            if (reactionMutation.isPending) return;
+                            reactionMutation.mutate(!isFireSelected);
+                        }}
+                        onShare={(event) => void sharePost(event, post)}
+                    />
+                </div>
+            </CardHeader>
+        </Card>
+    );
+}
+
+function usePostReactionMutation(postId: string, queryClient: ReturnType<typeof useQueryClient>) {
+    return useMutation({
         mutationFn: async (shouldSelect: boolean) => {
             const request = {
                 params: {
                     path: {
-                        post: post.id,
+                        post: postId,
                         reaction: defaultReaction,
                         version: "1",
                     },
@@ -77,40 +176,14 @@ export function PostCard({
             });
 
             queryClient.setQueriesData<PostMetadataByPostId>({queryKey: ["posts", "metadata"]}, (current) => {
-                if (!current?.[post.id]) return current;
+                if (!current?.[postId]) return current;
 
-                const postMetadata = current[post.id];
-                const currentReactions = postMetadata.reactions ?? [];
-                const existing = currentReactions.find((reaction) => reaction.name === defaultReaction);
-                const delta = shouldSelect ? 1 : -1;
-                let nextReactions;
-
-                if (!existing) {
-                    nextReactions = [
-                        ...currentReactions,
-                        {
-                            name: defaultReaction,
-                            count: shouldSelect ? 1 : 0,
-                            isSelected: shouldSelect,
-                        },
-                    ];
-                } else {
-                    nextReactions = currentReactions.map((reaction) =>
-                        reaction.name === defaultReaction
-                            ? {
-                                ...reaction,
-                                count: Math.max(0, reaction.count + delta),
-                                isSelected: shouldSelect,
-                            }
-                            : reaction
-                    );
-                }
-
+                const postMetadata = current[postId];
                 return {
                     ...current,
-                    [post.id]: {
+                    [postId]: {
                         ...postMetadata,
-                        reactions: nextReactions,
+                        reactions: updateReactionSelection(postMetadata.reactions ?? [], shouldSelect),
                     },
                 };
             });
@@ -127,8 +200,18 @@ export function PostCard({
             void queryClient.invalidateQueries({queryKey: ["posts", "metadata"]});
         },
     });
+}
 
-    const updateMutation = useMutation({
+function usePostUpdateMutation({
+    post,
+    queryClient,
+    onUpdated,
+}: {
+    post: Post;
+    queryClient: ReturnType<typeof useQueryClient>;
+    onUpdated: (content: string) => void;
+}) {
+    return useMutation({
         mutationFn: async (nextContent: string) => {
             const {error} = await client.PUT("/v1/posts/{post}", {
                 params: {
@@ -138,7 +221,6 @@ export function PostCard({
                     },
                 },
                 body: {
-                    title: post.title,
                     type: post.contentType as 0,
                     content: nextContent,
                 },
@@ -149,24 +231,34 @@ export function PostCard({
             }
         },
         onSuccess: async (_data, nextContent) => {
-            setContent(nextContent);
-            setDraftContent(nextContent);
-            setIsEditing(false);
-            await queryClient.invalidateQueries({queryKey: ["posts"]});
-            await queryClient.invalidateQueries({queryKey: ["replies"]});
-            await queryClient.invalidateQueries({queryKey: ["reacts"]});
+            onUpdated(nextContent);
+            await invalidatePostLists(queryClient);
         },
         onError: (error) => {
             console.error("Failed to update post", error);
         },
     });
+}
 
-    const deleteMutation = useMutation({
+function usePostDeleteMutation({
+    postId,
+    pathname,
+    router,
+    queryClient,
+    onDeleted,
+}: {
+    postId: string;
+    pathname: string;
+    router: ReturnType<typeof useRouter>;
+    queryClient: ReturnType<typeof useQueryClient>;
+    onDeleted: () => void;
+}) {
+    return useMutation({
         mutationFn: async () => {
             const {error} = await client.DELETE("/v1/posts/{post}", {
                 params: {
                     path: {
-                        post: post.id,
+                        post: postId,
                         version: "1",
                     },
                 },
@@ -177,12 +269,10 @@ export function PostCard({
             }
         },
         onSuccess: async () => {
-            setIsDeleted(true);
-            await queryClient.invalidateQueries({queryKey: ["posts"]});
-            await queryClient.invalidateQueries({queryKey: ["replies"]});
-            await queryClient.invalidateQueries({queryKey: ["reacts"]});
+            onDeleted();
+            await invalidatePostLists(queryClient);
 
-            if (pathname === `/p/${post.id}`) {
+            if (pathname === `/p/${postId}`) {
                 if (window.sessionStorage.getItem(internalNavigationStorageKey) === "1") {
                     window.sessionStorage.removeItem(internalNavigationStorageKey);
                     router.back();
@@ -195,229 +285,262 @@ export function PostCard({
             console.error("Failed to delete post", error);
         },
     });
+}
 
-    const handleReaction = () => {
-        reactionMutation.mutate(!isFireSelected);
-    };
+function PostHeader({
+    post,
+    canEdit,
+    canDelete,
+    isBusy,
+    onEdit,
+    onDelete,
+}: {
+    post: Post;
+    canEdit: boolean;
+    canDelete: boolean;
+    isBusy: boolean;
+    onEdit: (event: React.MouseEvent) => void;
+    onDelete: (event: React.MouseEvent) => void;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-2">
+            <PostAuthorLinks post={post} />
 
-    const handleStartEdit = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setDraftContent(content);
-        setIsEditing(true);
-    };
+            <div className="flex shrink-0 items-center gap-2">
+                <PostDate createdAt={post.createdAt} updatedAt={post.updatedAt} />
+                <PostOwnerControls
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    isBusy={isBusy}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                />
+            </div>
+        </div>
+    );
+}
 
-    const handleCancelEdit = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setDraftContent(content);
-        setIsEditing(false);
-    };
+function PostAuthorLinks({post}: {post: Post}) {
+    return (
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 overflow-hidden">
+            <Link
+                href={`/u/${post.author.username}`}
+                className="truncate text-lg font-bold underline-offset-2 hover:underline decoration-2"
+                onClick={(event) => event.stopPropagation()}
+            >
+                {post.author.displayName}
+            </Link>
 
-    const handleSaveEdit = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const nextContent = draftContent.trim();
-        if (nextContent.length < 10 || nextContent.length > 500 || nextContent === content || updateMutation.isPending) {
-            return;
-        }
+            <Link
+                href={`/u/${post.author.username}`}
+                className="truncate text-sm text-muted-foreground transition-colors hover:text-primary"
+                onClick={(event) => event.stopPropagation()}
+            >
+                @{post.author.username}
+            </Link>
+        </div>
+    );
+}
 
-        updateMutation.mutate(nextContent);
-    };
+function PostDate({createdAt, updatedAt}: {createdAt: string; updatedAt?: string | null}) {
+    return (
+        <div className="flex flex-col">
+            <span className="whitespace-nowrap text-sm text-muted-foreground">
+                {new Date(createdAt).toLocaleDateString()}
+            </span>
 
-    const handleDelete = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (deleteMutation.isPending) return;
-        if (!window.confirm("Удалить пост?")) return;
+            {updatedAt && <EditedAtLabel updatedAt={updatedAt} />}
+        </div>
+    );
+}
 
-        deleteMutation.mutate();
-    };
-
-    const handleShare = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const postUrl = `${window.location.origin}/p/${post.id}`;
-
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: `Пост от ${post.author.displayName}`,
-                    text: `Смотри, что пишет ${post.author.displayName}: ${post.content.substring(0, 50)}...`,
-                    url: postUrl,
-                });
-            } catch (error) {
-                console.log("Шаринг отменен или произошла ошибка", error);
-            }
-        } else {
-            try {
-                await navigator.clipboard.writeText(postUrl);
-                alert("Ссылка на пост скопирована в буфер обмена!");
-            } catch (error) {
-                console.error("Не удалось скопировать ссылку", error);
-            }
-        }
-    };
-
-    if (isDeleted) {
+function PostOwnerControls({
+    canEdit,
+    canDelete,
+    isBusy,
+    onEdit,
+    onDelete,
+}: {
+    canEdit: boolean;
+    canDelete: boolean;
+    isBusy: boolean;
+    onEdit: (event: React.MouseEvent) => void;
+    onDelete: (event: React.MouseEvent) => void;
+}) {
+    if (!canEdit && !canDelete) {
         return null;
     }
 
-    const isClickable = !!onClick;
+    return (
+        <div className="flex items-center gap-1">
+            {canEdit && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Редактировать"
+                    className="h-8 w-8 rounded-full"
+                    onClick={onEdit}
+                    disabled={isBusy}
+                >
+                    <Pencil className="h-4 w-4" />
+                </Button>
+            )}
+
+            {canDelete && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Удалить"
+                    className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={onDelete}
+                    disabled={isBusy}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            )}
+        </div>
+    );
+}
+
+function PostContent({content}: {content: string}) {
+    return (
+        <p className="wrap-break-word text-left text-[15px] leading-normal text-foreground">
+            {content}
+        </p>
+    );
+}
+
+function PostEditor({
+    content,
+    draftContent,
+    isSaving,
+    onChange,
+    onCancel,
+    onSave,
+}: {
+    content: string;
+    draftContent: string;
+    isSaving: boolean;
+    onChange: (content: string) => void;
+    onCancel: (event: React.MouseEvent) => void;
+    onSave: (event: React.MouseEvent) => void;
+}) {
+    const nextContent = draftContent.trim();
+    const canSave = canSavePostEdit(content, nextContent);
 
     return (
-        <Card
-            className={cn(
-                "w-full border rounded-2xl sm:rounded-3xl transition-all duration-300 group z-20 text-left shadow-sm border-border/50",
-                isClickable && "cursor-pointer hover:bg-accent/5 hover:shadow-md"
-            )}
+        <div className="space-y-3" onClick={(event) => event.stopPropagation()}>
+            <textarea
+                value={draftContent}
+                onChange={(event) => onChange(event.target.value)}
+                className="min-h-24 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-left text-[15px] leading-normal text-foreground outline-none focus:border-primary disabled:opacity-50"
+                maxLength={500}
+                disabled={isSaving}
+                autoFocus
+            />
+
+            <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
+                    <X className="h-4 w-4" />
+                    Отмена
+                </Button>
+                <Button size="sm" onClick={onSave} disabled={isSaving || !canSave}>
+                    <Check className="h-4 w-4" />
+                    Сохранить
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function PostFooter({
+    commentsCount,
+    repliesCount,
+    fireCount,
+    isFireSelected,
+    onReaction,
+    onShare,
+}: {
+    commentsCount: number;
+    repliesCount: number;
+    fireCount: number;
+    isFireSelected: boolean;
+    onReaction: (event: React.MouseEvent) => void;
+    onShare: (event: React.MouseEvent) => void;
+}) {
+    return (
+        <CardFooter className="mt-3 flex max-w-md justify-start gap-10 p-0 text-muted-foreground">
+            <PostFooterStat icon={MessageCircle} count={commentsCount} hoverClass="group-hover/icon:text-blue-500" iconHoverClass="group-hover/icon:bg-blue-500/10 group-hover/icon:text-blue-500" />
+            <PostFooterStat icon={Repeat2} count={repliesCount} hoverClass="group-hover/icon:text-green-500" iconHoverClass="group-hover/icon:bg-green-500/10 group-hover/icon:text-green-500" />
+            <PostFooterAction
+                icon={Flame}
+                count={fireCount}
+                active={isFireSelected}
+                iconClass={isFireSelected ? "fill-current text-orange-500" : undefined}
+                hoverClass="group-hover/icon:text-orange-500"
+                iconHoverClass="group-hover/icon:bg-orange-500/10 group-hover/icon:text-orange-500"
+                onClick={onReaction}
+            />
+            <PostFooterAction
+                icon={ExternalLink}
+                hoverClass="group-hover/icon:text-blue-500"
+                iconHoverClass="group-hover/icon:bg-blue-500/10 group-hover/icon:text-blue-500"
+                onClick={onShare}
+            />
+        </CardFooter>
+    );
+}
+
+function PostFooterStat({
+    icon,
+    count,
+    hoverClass,
+    iconHoverClass,
+}: {
+    icon: ComponentType<{className?: string}>;
+    count: number;
+    hoverClass: string;
+    iconHoverClass: string;
+}) {
+    return (
+        <PostFooterAction
+            icon={icon}
+            count={count}
+            hoverClass={hoverClass}
+            iconHoverClass={iconHoverClass}
+        />
+    );
+}
+
+function PostFooterAction({
+    icon: Icon,
+    count,
+    active,
+    iconClass,
+    hoverClass,
+    iconHoverClass,
+    onClick,
+}: {
+    icon: ComponentType<{className?: string}>;
+    count?: number;
+    active?: boolean;
+    iconClass?: string;
+    hoverClass: string;
+    iconHoverClass: string;
+    onClick?: (event: React.MouseEvent) => void;
+}) {
+    return (
+        <div
+            className={cn("group/icon flex items-center gap-1 transition-colors", hoverClass, active && "text-orange-500")}
             onClick={onClick}
         >
-            <CardHeader className="flex flex-row items-start gap-4 p-4 pb-2">
-                {showAvatar && (
-                    <UserAvatar username={post.author.username} avatarUrl={post.author.avatarUrl} className="size-10 shrink-0" />
-                )}
-
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex flex-col items-start gap-1 overflow-hidden flex-1">
-                            <Link
-                                href={`/u/${post.author.username}`}
-                                className="text-lg font-bold truncate hover:underline decoration-2 underline-offset-2"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {post.author.displayName}
-                            </Link>
-
-                            <Link
-                                href={`/u/${post.author.username}`}
-                                className="text-muted-foreground truncate text-sm hover:text-primary transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                @{post.author.username}
-                            </Link>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                            <div className="flex flex-col">
-                                <span className="text-muted-foreground text-sm whitespace-nowrap">
-                                    {new Date(post.createdAt).toLocaleDateString()}
-                                </span>
-
-                                {post.updatedAt && (
-                                    <EditedAtLabel updatedAt={post.updatedAt} />
-                                )}
-                            </div>
-
-                            {canEdit && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    title="Редактировать"
-                                    className="h-8 w-8 rounded-full"
-                                    onClick={handleStartEdit}
-                                    disabled={updateMutation.isPending || deleteMutation.isPending}
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                </Button>
-                            )}
-
-                            {canDelete && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    title="Удалить"
-                                    className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                    onClick={handleDelete}
-                                    disabled={updateMutation.isPending || deleteMutation.isPending}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-
-                    <CardContent className="p-0 mt-1">
-                        {isEditing ? (
-                            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                                <textarea
-                                    value={draftContent}
-                                    onChange={(e) => setDraftContent(e.target.value)}
-                                    className="w-full min-h-24 resize-y rounded-lg border border-border bg-background px-3 py-2 text-left text-[15px] leading-normal text-foreground outline-none focus:border-primary disabled:opacity-50"
-                                    maxLength={500}
-                                    disabled={updateMutation.isPending}
-                                    autoFocus
-                                />
-                                <div className="flex justify-end gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleCancelEdit}
-                                        disabled={updateMutation.isPending}
-                                    >
-                                        <X className="h-4 w-4" />
-                                        Отмена
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        onClick={handleSaveEdit}
-                                        disabled={
-                                            updateMutation.isPending ||
-                                            draftContent.trim().length < 10 ||
-                                            draftContent.trim().length > 500 ||
-                                            draftContent.trim() === content
-                                        }
-                                    >
-                                        <Check className="h-4 w-4" />
-                                        Сохранить
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-left text-[15px] leading-normal text-foreground wrap-break-word">
-                                {content}
-                            </p>
-                        )}
-                    </CardContent>
-
-                    <CardFooter className="p-0 mt-3 flex justify-start gap-10 max-w-md text-muted-foreground">
-                        <div className="flex items-center gap-1 group/icon">
-                            <div className="p-2 rounded-full group-hover/icon:bg-blue-500/10 group-hover/icon:text-blue-500 transition-colors">
-                                <MessageCircle className="size-5" />
-                            </div>
-                            <span className="text-s group-hover/icon:text-blue-500">{formatCompactNumber(post.commentsCount)}</span>
-                        </div>
-
-                        <div className="flex items-center gap-1 group/icon">
-                            <div className="p-2 rounded-full group-hover/icon:bg-green-500/10 group-hover/icon:text-green-500 transition-colors">
-                                <Repeat2 className="size-5" />
-                            </div>
-                            <span className="text-s group-hover/icon:text-green-500">{formatCompactNumber(post.repliesCount)}</span>
-                        </div>
-
-                        <div
-                            className={cn(
-                                "flex items-center gap-1 group/icon transition-colors",
-                                isFireSelected && "text-orange-500"
-                            )}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleReaction();
-                            }}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-full group-hover/icon:bg-orange-500/10 group-hover/icon:text-orange-500 transition-colors",
-                                isFireSelected && "text-orange-500"
-                            )}>
-                                <Flame className={cn("size-5", isFireSelected && "text-orange-500 fill-current")} />
-                            </div>
-                            <span className="text-s group-hover/icon:text-orange-500">{formatCompactNumber(fireCount)}</span>
-                        </div>
-
-                        <div className="flex items-center group/icon" onClick={handleShare}>
-                            <div className="p-2 rounded-full group-hover/icon:bg-blue-500/10 group-hover/icon:text-blue-500 transition-colors">
-                                <ExternalLink className="size-5" />
-                            </div>
-                        </div>
-                    </CardFooter>
-                </div>
-            </CardHeader>
-        </Card>
+            <div className={cn("rounded-full p-2 transition-colors", iconHoverClass, active && "text-orange-500")}>
+                <Icon className={cn("size-5", iconClass)} />
+            </div>
+            {typeof count === "number" && (
+                <span className={cn("text-s", hoverClass)}>{formatCompactNumber(count)}</span>
+            )}
+        </div>
     );
 }
 
@@ -427,8 +550,8 @@ function EditedAtLabel({updatedAt}: {updatedAt: string}) {
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span
-                        className="text-muted-foreground text-sm whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
+                        className="whitespace-nowrap text-sm text-muted-foreground"
+                        onClick={(event) => event.stopPropagation()}
                     >
                         изменено
                     </span>
@@ -439,4 +562,65 @@ function EditedAtLabel({updatedAt}: {updatedAt: string}) {
             </Tooltip>
         </TooltipProvider>
     );
+}
+
+function updateReactionSelection(reactions: GetReactionsDto[], shouldSelect: boolean) {
+    const existing = reactions.find((reaction) => reaction.name === defaultReaction);
+    const delta = shouldSelect ? 1 : -1;
+
+    if (!existing) {
+        return [
+            ...reactions,
+            {
+                name: defaultReaction,
+                count: shouldSelect ? 1 : 0,
+                isSelected: shouldSelect,
+            },
+        ];
+    }
+
+    return reactions.map((reaction) =>
+        reaction.name === defaultReaction
+            ? {
+                ...reaction,
+                count: Math.max(0, reaction.count + delta),
+                isSelected: shouldSelect,
+            }
+            : reaction
+    );
+}
+
+function canSavePostEdit(currentContent: string, nextContent: string) {
+    return nextContent.length >= 10 && nextContent.length <= 500 && nextContent !== currentContent;
+}
+
+async function sharePost(event: React.MouseEvent, post: Post) {
+    event.stopPropagation();
+    const postUrl = `${window.location.origin}/p/${post.id}`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `Пост от ${post.author.displayName}`,
+                text: `Смотри, что пишет ${post.author.displayName}: ${post.content.substring(0, 50)}...`,
+                url: postUrl,
+            });
+        } catch (error) {
+            console.log("Шаринг отменен или произошла ошибка", error);
+        }
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(postUrl);
+        alert("Ссылка на пост скопирована в буфер обмена!");
+    } catch (error) {
+        console.error("Не удалось скопировать ссылку", error);
+    }
+}
+
+async function invalidatePostLists(queryClient: ReturnType<typeof useQueryClient>) {
+    await queryClient.invalidateQueries({queryKey: ["posts"]});
+    await queryClient.invalidateQueries({queryKey: ["replies"]});
+    await queryClient.invalidateQueries({queryKey: ["reacts"]});
 }

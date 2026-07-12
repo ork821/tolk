@@ -14,5 +14,7 @@ public record CommentPermissionsDto(
     [property: Required]
     bool CanUpdate,
     [property: Required]
-    bool CanDelete
+    bool CanDelete,
+    [property: Required]
+    bool CanReply
 );

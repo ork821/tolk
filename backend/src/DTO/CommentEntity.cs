@@ -14,7 +14,7 @@ public record CommentEntity(
     [property: Required]
     string Content,
     [property: Required]
-    long RepliesCount,
+    long VisibleRepliesCount,
     [property: Required]
     DateTime CreatedAt,
     DateTime? UpdatedAt,

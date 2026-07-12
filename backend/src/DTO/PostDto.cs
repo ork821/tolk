@@ -8,8 +8,7 @@ public record PostDto(
     [property: Required]
     string Id,
     
-    [property: Required]
-    string Title,
+    string? Title,
     
     [property: Required]
     int ContentType,
@@ -43,7 +42,7 @@ public record PostDto(
     {
         return new PostDto(
             reader.GetInt64(0).ToString(),
-            reader.GetString(1),
+            reader.IsDBNull(1) ? null : reader.GetString(1),
             reader.GetInt32(2),
             reader.GetString(3),
             !reader.IsDBNull(4) ? new ReplyAuthorDto(

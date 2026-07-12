@@ -14,6 +14,22 @@ namespace TolkApi.Users;
 public class UsersController(UsersService usersService) : ControllerBase
 {
     private const int PageSize = 20;
+    private const int SearchLimit = 20;
+
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(SearchUserDto[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SearchUsers(
+        [FromQuery(Name = "q")] string query,
+        [FromUserId] Guid? userId)
+    {
+        var normalizedQuery = query.Trim();
+        if (normalizedQuery.Length < 2) return BadRequest("Search query must be at least 2 characters long");
+
+        var users = await usersService.SearchUsers(normalizedQuery, SearchLimit, userId);
+
+        return Ok(users);
+    }
 
     [HttpGet("{username}/posts")]
     [ProducesResponseType(typeof(PagedPostsDto), StatusCodes.Status200OK)]

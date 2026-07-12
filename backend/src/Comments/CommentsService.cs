@@ -28,7 +28,7 @@ public class CommentsService(DatabaseContext databaseContext)
     }
 
     public async Task<CreateUpdateCommentDto?> CreateComment(long postId, long commentId, Guid userId, 
-        ContentType contentType, string content)
+        int contentType, string content)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -52,7 +52,7 @@ public class CommentsService(DatabaseContext databaseContext)
     }
     
     public async Task<CreateUpdateCommentDto?> CreateReplyComment(long commentId, long parentCommentId, Guid userId, 
-        ContentType contentType, string content)
+        int contentType, string content)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -75,7 +75,7 @@ public class CommentsService(DatabaseContext databaseContext)
         return null;
     }
     
-    public async Task<CreateUpdateCommentDto?> UpdateComment(long commentId, Guid userId, ContentType contentType, string content)
+    public async Task<CreateUpdateCommentDto?> UpdateComment(long commentId, Guid userId, int contentType, string content)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(

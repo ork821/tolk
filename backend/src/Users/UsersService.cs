@@ -104,6 +104,23 @@ public class UsersService(DatabaseContext databaseContext)
         return usersMetadata;
     }
 
+    public async Task<SearchUserDto[]> SearchUsers(string query, int limit, Guid? userId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand(@"SELECT * FROM users.search_users(@query, @limit, @userId)");
+
+        command.Parameters.AddWithValue("@query", query);
+        command.Parameters.AddWithValue("@limit", limit);
+        command.Parameters.AddWithValue("@userId", userId != null ? userId : DBNull.Value);
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        var users = new List<SearchUserDto>();
+        while (await reader.ReadAsync()) users.Add(SearchUserDto.FromReader(reader));
+
+        return users.ToArray();
+    }
+
     public async Task<GetUserByUsernameDto?> GetUserById(Guid userId)
     {
         await using var command = databaseContext.GetCon()

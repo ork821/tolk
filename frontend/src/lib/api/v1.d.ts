@@ -1787,7 +1787,7 @@ export interface components {
             type: components["schemas"]["ContentType"];
             content: string;
             /** Format: int64 */
-            repliesCount: number;
+            visibleRepliesCount: number;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1802,6 +1802,7 @@ export interface components {
         CommentPermissionsDto: {
             canUpdate: boolean;
             canDelete: boolean;
+            canReply: boolean;
         };
         /**
          * Format: int32
@@ -1809,12 +1810,10 @@ export interface components {
          */
         ContentType: 0;
         CreateCommentBodyDto: {
-            parentCommentId?: string | null;
             type: components["schemas"]["ContentType"];
             content: string;
         };
         CreatePostBodyDto: {
-            title: string;
             type: components["schemas"]["ContentType"];
             content: string;
         };
@@ -1835,7 +1834,7 @@ export interface components {
         CreateUpdatePostDto: {
             id: string;
             parentPostId?: string | null;
-            title: string;
+            title?: string | null;
             /** Format: int32 */
             contentType: number;
             content: string;
@@ -1918,7 +1917,7 @@ export interface components {
         };
         PostDto: {
             id: string;
-            title: string;
+            title?: string | null;
             /** Format: int32 */
             contentType: number;
             content: string;
@@ -1943,6 +1942,7 @@ export interface components {
         PostPermissionsDto: {
             canUpdate: boolean;
             canDelete: boolean;
+            canReply: boolean;
         };
         ProblemDetails: {
             type?: string | null;
@@ -1969,7 +1969,6 @@ export interface components {
             content: string;
         };
         UpdatePostBodyDto: {
-            title: string;
             type: components["schemas"]["ContentType"];
             content: string;
         };
