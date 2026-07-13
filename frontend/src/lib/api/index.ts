@@ -124,6 +124,8 @@ export type ProblemDetails = ApiSchemas["ProblemDetails"];
 export type ReactionTypeDto = ApiSchemas["ReactionTypeDto"];
 export type UpdateCommentBodyDto = ApiSchemas["UpdateCommentBodyDto"];
 export type UpdatePostBodyDto = ApiSchemas["UpdatePostBodyDto"];
+export type UpdateProfileInfoBodyDto = ApiSchemas["UpdateProfileInfoBodyDto"];
+export type UpdateProfileInfoDto = ApiSchemas["UpdateProfileInfoDto"];
 
 export type AuthProvidersResponse = AuthProvidersDto;
 export type LoginResponse = AuthTokenDto;
@@ -152,6 +154,27 @@ export type PostReactionsByPostId = Record<string, GetReactionsDto[]>;
 export type FollowListUser = (GetUserSubscribesDto | GetUserSubscribersDto) & {
     isSubscribed?: boolean;
 };
+
+export async function updateProfileInfo(body: UpdateProfileInfoBodyDto): Promise<UpdateProfileInfoDto> {
+    const {data, error} = await client.PATCH("/v1/profile", {
+        params: {
+            path: {
+                version: "1",
+            },
+        },
+        body,
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to update profile");
+    }
+
+    return data;
+}
 
 
 

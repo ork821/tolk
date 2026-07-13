@@ -1,6 +1,7 @@
 ﻿using TolkApi.Database;
 using TolkApi.DTO;
 using TolkApi.Users.DTO;
+using NpgsqlTypes;
 
 namespace TolkApi.Users;
 
@@ -119,6 +120,35 @@ public class UsersService(DatabaseContext databaseContext)
         while (await reader.ReadAsync()) users.Add(SearchUserDto.FromReader(reader));
 
         return users.ToArray();
+    }
+
+    public async Task<UpdateProfileInfoDto?> UpdateProfileInfo(
+        Guid userId,
+        string? displayName,
+        string? description,
+        string? avatarUrl)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand("""
+                           SELECT *
+                           FROM users.update_profile_info(
+                               p_user_id => @userId,
+                               p_display_name => @displayName,
+                               p_description => @description,
+                               p_avatar_url => @avatarUrl
+                           )
+                           """);
+
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
+        command.Parameters.Add("displayName", NpgsqlDbType.Text).Value = displayName != null ? displayName : DBNull.Value;
+        command.Parameters.Add("description", NpgsqlDbType.Text).Value = description != null ? description : DBNull.Value;
+        command.Parameters.Add("avatarUrl", NpgsqlDbType.Text).Value = avatarUrl != null ? avatarUrl : DBNull.Value;
+
+        await using var reader = await command.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync()) return UpdateProfileInfoDto.FromReader(reader);
+
+        return null;
     }
 
     public async Task<GetUserByUsernameDto?> GetUserById(Guid userId)

@@ -1240,6 +1240,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json-patch+json": components["schemas"]["UpdateProfileInfoBodyDto"];
+                    "application/json": components["schemas"]["UpdateProfileInfoBodyDto"];
+                    "text/json": components["schemas"]["UpdateProfileInfoBodyDto"];
+                    "application/*+json": components["schemas"]["UpdateProfileInfoBodyDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UpdateProfileInfoDto"];
+                        "application/json": components["schemas"]["UpdateProfileInfoDto"];
+                        "text/json": components["schemas"]["UpdateProfileInfoDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/v1/reaction-types": {
         parameters: {
             query?: never;
@@ -1267,6 +1335,58 @@ export interface paths {
                         "text/plain": components["schemas"]["ReactionTypeDto"][];
                         "application/json": components["schemas"]["ReactionTypeDto"][];
                         "text/json": components["schemas"]["ReactionTypeDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path: {
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SearchUserDto"][];
+                        "application/json": components["schemas"]["SearchUserDto"][];
+                        "text/json": components["schemas"]["SearchUserDto"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
                     };
                 };
             };
@@ -1964,6 +2084,15 @@ export interface components {
             username: string;
             displayName: string;
         };
+        SearchUserDto: {
+            username: string;
+            displayName: string;
+            avatarUrl?: string | null;
+            /** Format: int64 */
+            subscribersCount: number;
+            isSubscribed: boolean;
+            isMe: boolean;
+        };
         UpdateCommentBodyDto: {
             type: components["schemas"]["ContentType"];
             content: string;
@@ -1971,6 +2100,28 @@ export interface components {
         UpdatePostBodyDto: {
             type: components["schemas"]["ContentType"];
             content: string;
+        };
+        UpdateProfileInfoBodyDto: {
+            displayName?: string | null;
+            description?: string | null;
+            avatarUrl?: string | null;
+        };
+        UpdateProfileInfoDto: {
+            /** Format: uuid */
+            id: string;
+            username: string;
+            displayName: string;
+            email?: string | null;
+            description?: string | null;
+            avatarUrl?: string | null;
+            /** Format: int64 */
+            karma: number;
+            /** Format: int64 */
+            subscribersCount: number;
+            /** Format: int64 */
+            userSubscribesCount: number;
+            /** Format: int64 */
+            groupSubscribesCount: number;
         };
         UserMetadataDto: {
             isSubscribed: boolean;
