@@ -1,21 +1,8 @@
 import type {Metadata} from "next";
-import {Geist_Mono, Noto_Sans} from "next/font/google";
 import "./globals.css";
 import {Header} from "@/components/layout/header";
 import {Sidebar} from "@/components/layout/sidebar";
 import QueryProvider from "@/components/providers/query-provider";
-
-const notoSans = Noto_Sans({
-    subsets: ["latin", "cyrillic"],
-    variable: "--font-sans",
-    display: "swap",
-});
-
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
-    subsets: ["latin"],
-    display: "swap",
-});
 
 export const metadata: Metadata = {
     title: "ТОЛК",
@@ -30,7 +17,7 @@ export const metadata: Metadata = {
 export default function RootLayout({children}: { children: React.ReactNode; }) {
     return (
         <html lang="ru" className="light">
-        <body className={`${notoSans.variable} ${geistMono.variable} min-h-screen bg-background antialiased font-sans`}>
+        <body className="min-h-screen bg-background antialiased font-sans">
         <QueryProvider>
             <div className="relative flex min-h-screen flex-col">
                 <Header/>

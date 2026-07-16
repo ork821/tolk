@@ -35,9 +35,15 @@ public class AuthController(
     [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> SocialLogin(string provider, [FromBody] OAuthLoginDto dto)
+    public async Task<IActionResult> SocialLogin(
+        string provider,
+        [FromBody] OAuthLoginDto dto,
+        CancellationToken cancellationToken)
     {
         if (!SupportedProviders.Contains(provider)) return BadRequest("Provider is not supported");
+
+        var validationResult = await new OAuthLoginDtoValidator().ValidateAsync(dto, cancellationToken);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
         if (string.IsNullOrWhiteSpace(userAgent)) return BadRequest("Invalid UserAgent");
@@ -47,7 +53,7 @@ public class AuthController(
         if (providerInstance == null) return BadRequest("Provider is not supported");
 
         // 1. Провалидировали в Google
-        var externalUserInfo = await providerInstance.GetUserInfo(dto.Token);
+        var externalUserInfo = await providerInstance.GetUserInfo(dto.Token, cancellationToken);
         if (externalUserInfo == null) return Unauthorized("Невалидный токен");
         
         // 2. Ищем или создаем пользователя (наша логика)
@@ -60,14 +66,20 @@ public class AuthController(
             externalUserInfo.AvatarUrl
         );
 
+        if (user == null) return Unauthorized();
+
         // 3. Выдаем НАШИ токены
         
         var expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(30));
         var accessToken = tokenService.GenerateAccessToken(user.UserId, expires);
         var refreshToken = tokenService.GenerateRefreshToken();
 
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var sessionId = await _authService.CreateAuthSession(user.UserId, userAgent, ipAddress);
+        if (!sessionId.HasValue) return StatusCode(StatusCodes.Status503ServiceUnavailable);
 
-        await _authService.SaveRefreshToken(user.UserId, refreshToken, 30, userAgent);
+        var refreshSaved = await _authService.SaveRefreshToken(sessionId.Value, refreshToken, 30);
+        if (!refreshSaved) return StatusCode(StatusCodes.Status503ServiceUnavailable);
 
         HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
         {
@@ -89,28 +101,30 @@ public class AuthController(
         HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
         if (refresh == null) return Unauthorized();
 
-        var userRefreshToken = await _authService.ValidateRefreshToken(refresh);
-        if (userRefreshToken == null || userRefreshToken.IsValid != true) return Unauthorized();
-
-        if (userRefreshToken.Revoked)
-        {
-            Console.WriteLine($"User came with revoked refresh token {userRefreshToken.UserId}");
-            await _authService.RevokeAllRefreshTokens(userRefreshToken.UserId, null);
-            return Unauthorized();
-        }
-
         var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
         if (string.IsNullOrWhiteSpace(userAgent)) return BadRequest("Invalid UserAgent");
 
-        await _authService.RevokeRefreshToken(refresh);
+        var refreshToken = tokenService.GenerateRefreshToken();
+        var rotation = await _authService.RotateRefreshToken(
+            refresh,
+            refreshToken,
+            30,
+            userAgent,
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            HttpContext.RequestAborted);
 
-        var userId = userRefreshToken.UserId;
+        if (rotation?.ShouldRevokeAll == true && rotation.UserId.HasValue)
+        {
+            Console.WriteLine($"Refresh token reuse detected for user {rotation.UserId}");
+            await _authService.RevokeAllRefreshTokens(rotation.UserId.Value, null);
+            return Unauthorized();
+        }
+
+        if (rotation?.IsRotated != true || !rotation.UserId.HasValue) return Unauthorized();
+
+        var userId = rotation.UserId.Value;
         var expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(30));
         var accessToken = tokenService.GenerateAccessToken(userId, expires);
-        var refreshToken = tokenService.GenerateRefreshToken();
-
-
-        await _authService.SaveRefreshToken(userId, refreshToken, 30, userAgent);
 
         HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
         {
@@ -154,6 +168,8 @@ public class OAuthLoginDtoValidator : AbstractValidator<OAuthLoginDto>
     public OAuthLoginDtoValidator()
     {
         RuleFor(x => x.Token)
-            .NotEmpty().WithMessage("Token shouldn't be empty");
+            .NotEmpty()
+            .MaximumLength(4096)
+            .WithMessage("Token must be between 1 and 4096 characters");
     }
 }

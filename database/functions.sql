@@ -556,21 +556,116 @@ $$
     LANGUAGE plpgsql;
 
 -- Refresh tokens
-CREATE OR REPLACE FUNCTION users.save_refresh_token(
+CREATE OR REPLACE FUNCTION users.create_auth_session(
     p_user_id UUID,
-    p_token_hash TEXT,
-    p_expires_in_days INT DEFAULT 30, -- По умолчанию токен живет 30 дней
     p_user_agent TEXT DEFAULT NULL,
     p_ip_address INET DEFAULT NULL
+) RETURNS UUID AS
+$$
+DECLARE
+    v_session_id UUID;
+BEGIN
+    INSERT INTO users.auth_sessions (user_id, user_agent, last_ip_address, last_used_at)
+    VALUES (p_user_id, p_user_agent, p_ip_address, NOW())
+    RETURNING id INTO v_session_id;
+
+    RETURN v_session_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION users.save_refresh_token(
+    p_session_id UUID,
+    p_token_hash TEXT,
+    p_expires_in_days INT DEFAULT 30
 ) RETURNS VOID AS
 $$
 BEGIN
-    INSERT INTO users.refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
-    VALUES (p_user_id,
+    INSERT INTO users.auth_session_tokens (session_id, token_hash, expires_at)
+    VALUES (p_session_id,
             p_token_hash,
-            NOW() + (p_expires_in_days || ' days')::INTERVAL,
-            p_user_agent,
-            p_ip_address);
+            NOW() + (p_expires_in_days || ' days')::INTERVAL);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION users.rotate_refresh_token(
+    p_previous_token_hash TEXT,
+    p_new_token_hash TEXT,
+    p_expires_in_days INT DEFAULT 30,
+    p_user_agent TEXT DEFAULT NULL,
+    p_ip_address INET DEFAULT NULL
+)
+    RETURNS TABLE
+            (
+                po_user_id             UUID,
+                po_is_rotated          BOOLEAN,
+                po_should_revoke_all  BOOLEAN
+            )
+AS
+$$
+DECLARE
+    v_user_id              UUID;
+    v_session_id           UUID;
+    v_revoked_at           TIMESTAMPTZ;
+    v_expires_at           TIMESTAMPTZ;
+    v_session_revoked_at   TIMESTAMPTZ;
+    v_old_token_id         UUID;
+    v_new_token_id         UUID;
+BEGIN
+    IF p_expires_in_days <= 0 THEN
+        RAISE EXCEPTION 'Refresh token lifetime must be greater than zero';
+    END IF;
+
+    -- Lock the old token so concurrent refresh requests cannot rotate it twice.
+    SELECT s.user_id, s.id, t.id, t.revoked_at, t.expires_at, s.revoked_at
+    INTO v_user_id, v_session_id, v_old_token_id, v_revoked_at, v_expires_at, v_session_revoked_at
+    FROM users.auth_session_tokens t
+    INNER JOIN users.auth_sessions s ON s.id = t.session_id
+    WHERE t.token_hash = p_previous_token_hash
+    FOR UPDATE OF t, s;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT NULL::UUID, FALSE, FALSE;
+        RETURN;
+    END IF;
+
+    -- A revoked token means token reuse. The caller can revoke all sessions.
+    IF v_revoked_at IS NOT NULL THEN
+        RETURN QUERY SELECT v_user_id, FALSE, TRUE;
+        RETURN;
+    END IF;
+
+    IF v_session_revoked_at IS NOT NULL THEN
+        RETURN QUERY SELECT v_user_id, FALSE, FALSE;
+        RETURN;
+    END IF;
+
+    IF v_expires_at <= NOW() THEN
+        RETURN QUERY SELECT v_user_id, FALSE, FALSE;
+        RETURN;
+    END IF;
+
+    UPDATE users.auth_session_tokens
+    SET revoked_at = NOW()
+    WHERE id = v_old_token_id;
+
+    INSERT INTO users.auth_session_tokens (session_id, token_hash, expires_at)
+    VALUES (
+        v_session_id,
+        p_new_token_hash,
+        NOW() + (p_expires_in_days || ' days')::INTERVAL)
+    RETURNING id INTO v_new_token_id;
+
+    UPDATE users.auth_session_tokens
+    SET replaced_by_id = v_new_token_id
+    WHERE id = v_old_token_id;
+
+    UPDATE users.auth_sessions s
+    SET last_used_at = NOW(),
+        user_agent = COALESCE(p_user_agent, user_agent),
+        last_ip_address = COALESCE(p_ip_address, last_ip_address)
+    WHERE id = v_session_id;
+
+    RETURN QUERY SELECT v_user_id, TRUE, FALSE;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -585,11 +680,12 @@ AS
 $$
 BEGIN
     RETURN QUERY
-        SELECT user_id,
-               revoked_at IS NOT NULL,
-               revoked_at IS NULL AND expires_at > NOW()
-        FROM users.refresh_tokens
-        WHERE token_hash = p_token_hash
+        SELECT s.user_id,
+               t.revoked_at IS NOT NULL,
+               t.revoked_at IS NULL AND t.expires_at > NOW() AND s.revoked_at IS NULL
+        FROM users.auth_session_tokens t
+        INNER JOIN users.auth_sessions s ON s.id = t.session_id
+        WHERE t.token_hash = p_token_hash
         LIMIT 1;
 
     -- Если токен не найден, возвращаем пустую строку (бекенд поймет это как FALSE и разлогинит юзера)
@@ -599,13 +695,27 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION users.revoke_refresh_token(p_token_hash TEXT)
     RETURNS BOOLEAN AS
 $$
+DECLARE
+    v_session_id UUID;
+    v_revoked   BOOLEAN;
 BEGIN
-    UPDATE users.refresh_tokens
+    UPDATE users.auth_session_tokens
     SET revoked_at = NOW()
     WHERE token_hash = p_token_hash
-      AND revoked_at IS NULL;
+      AND revoked_at IS NULL
+    RETURNING session_id INTO v_session_id;
 
-    RETURN FOUND; -- Вернет TRUE, если сессия была найдена и закрыта
+    v_revoked := FOUND;
+
+    IF v_revoked THEN
+        UPDATE users.auth_sessions
+        SET revoked_at = NOW(),
+            revoked_reason = 'logout'
+        WHERE id = v_session_id
+          AND revoked_at IS NULL;
+    END IF;
+
+    RETURN v_revoked; -- Вернет TRUE, если сессия была найдена и закрыта
 END;
 $$ LANGUAGE plpgsql;
 
@@ -616,11 +726,29 @@ CREATE OR REPLACE FUNCTION users.revoke_all_refresh_tokens(
 ) RETURNS VOID AS
 $$
 BEGIN
-    UPDATE users.refresh_tokens
+    UPDATE users.auth_session_tokens t
     SET revoked_at = NOW()
-    WHERE user_id = p_user_id
-      AND revoked_at IS NULL
-      AND (p_except_token_hash IS NULL OR token_hash != p_except_token_hash);
+    FROM users.auth_sessions s
+    WHERE t.session_id = s.id
+      AND s.user_id = p_user_id
+      AND t.revoked_at IS NULL
+      AND (p_except_token_hash IS NULL OR t.token_hash != p_except_token_hash);
+
+    UPDATE users.auth_sessions s
+    SET revoked_at = NOW(),
+        revoked_reason = 'revoked_all'
+    WHERE s.user_id = p_user_id
+      AND s.revoked_at IS NULL
+      AND (
+          p_except_token_hash IS NULL
+          OR NOT EXISTS (
+              SELECT 1
+              FROM users.auth_session_tokens t
+              WHERE t.session_id = s.id
+                AND t.token_hash = p_except_token_hash
+                AND t.revoked_at IS NULL
+          )
+      );
 END;
 $$ LANGUAGE plpgsql;
 -----

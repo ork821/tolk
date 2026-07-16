@@ -4,5 +4,5 @@ namespace TolkApi.Auth.Providers;
 
 public interface IAbstractExternalUserInfoProvider
 {
-    Task<SocialProfileInfo?> GetUserInfo(string token);
+    Task<SocialProfileInfo?> GetUserInfo(string token, CancellationToken cancellationToken);
 }

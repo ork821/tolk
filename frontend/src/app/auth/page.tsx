@@ -105,16 +105,23 @@ export default function AuthPage() {
     return (
         <div className="flex items-center justify-center min-h-[70vh] px-4">
             <Card className="w-full max-w-md border-2 shadow-xl rounded-3xl overflow-hidden border-border/50">
-                <CardHeader className="space-y-1 text-center bg-muted/20 pb-8 pt-8">
-                    <div className="mx-auto w-12 h-12 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center font-bold text-2xl mb-4 shadow-lg">
-                        N
+                <CardHeader className="flex flex-col items-center justify-center gap-3 space-y-1 text-center bg-muted/20 pb-8 pt-8">
+                    <div className="flex items-center gap-2" aria-label="ТОЛК">
+                        <img
+                            src="/icon.svg"
+                            alt=""
+                            className="size-11 shrink-0 rounded-xl object-contain"
+                        />
+                        <span className="hidden text-2xl font-black leading-none text-foreground lg:inline">
+                            ТОЛК
+                        </span>
                     </div>
                     <CardTitle className="text-3xl font-black tracking-tight">Добро пожаловать</CardTitle>
                     <CardDescription className="text-base">
-                        Выберите способ входа в аккаунт Social.App
+                        Выберите способ входа в аккаунт
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-8">
+                <CardContent className="grid gap-4 p-4">
                     {authError && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                             {authError}

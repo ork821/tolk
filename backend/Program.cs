@@ -22,6 +22,7 @@ using TolkApi.Utility;
 using TolkApi.Utility.OpenApi;
 using TolkApi.Utility.Routing;
 using StackExchange.Redis;
+using IPNetwork = System.Net.IPNetwork;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables("TOLK_");
@@ -42,7 +43,11 @@ builder.Services.AddCors(options =>
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.KnownProxies.Add(IPAddress.Parse("10.10.1.197"));
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+    // Production Nginx runs in the private Docker network. Do not trust
+    // forwarded headers received from arbitrary public clients.
+    options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("172.16.0.0"), 12));
 });
 
 if (builder.Configuration["JwtSettings:AccessSecret"] == null)
@@ -119,34 +124,37 @@ builder.Services.AddControllers(options =>
         options.Conventions.Add(new RouteTokenTransformerConvention(new LowercaseRouteParameterTransformer()));
     })
     .AddNewtonsoftJson();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
+if (builder.Environment.IsDevelopment())
 {
-    options.SupportNonNullableReferenceTypes();
-    options.SwaggerDoc("v1", new OpenApiInfo
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(options =>
     {
-        Title = "Tolk API",
-        Version = "v1"
-    });
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "JWT access token. Example: Bearer {token}"
-    });
-    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
+        options.SupportNonNullableReferenceTypes();
+        options.SwaggerDoc("v1", new OpenApiInfo
         {
-            new OpenApiSecuritySchemeReference("Bearer", document),
-            []
-        }
+            Title = "Tolk API",
+            Version = "v1"
+        });
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "JWT access token. Example: Bearer {token}"
+        });
+        options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecuritySchemeReference("Bearer", document),
+                []
+            }
+        });
+        options.OperationFilter<RemoveClaimBoundParametersOperationFilter>();
+        options.DocumentFilter<ApiVersionDocumentFilter>();
     });
-    options.OperationFilter<RemoveClaimBoundParametersOperationFilter>();
-    options.DocumentFilter<ApiVersionDocumentFilter>();
-});
+}
 
 builder.Services.AddAuthentication((options) =>
     {
@@ -187,70 +195,57 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-app.UseSwagger(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.RouteTemplate = "api/swagger/{documentName}/swagger.json";
-});
-app.UseSwaggerUI(options =>
-{
-    options.RoutePrefix = "api/swagger";
-    options.SwaggerEndpoint("/api/swagger/v1/swagger.json", "Tolk API v1");
-});
-
-app.Use((context, next) =>
-{
-    var host = context.Request.Headers["X-Forwarded-Host"];
-    var schema = context.Request.Headers["X-Forwarded-Proto"];
-    if (host.Count > 0 && schema.Count > 0 && host[0] != null && schema[0] != null)
+    app.UseSwagger(options =>
     {
-        context.Request.Scheme = schema[0]!;
-        context.Request.Host = new HostString(host[0]!);
-    }
-
-    return next();
-});
-
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
-
-var defaultFolderCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite |
-                              UnixFileMode.GroupRead |
-                              UnixFileMode.GroupWrite |
-                              UnixFileMode.OtherRead |
-                              UnixFileMode.OtherWrite; 
-var avatarsFolder = Path.Combine(Directory.GetCurrentDirectory(), "avatars");
-if (!Directory.Exists(avatarsFolder))
-{
-    if (OperatingSystem.IsLinux())
-        Directory.CreateDirectory(avatarsFolder, defaultFolderCreateMode);
-    else
+        options.RouteTemplate = "api/swagger/{documentName}/swagger.json";
+    });
+    app.UseSwaggerUI(options =>
     {
-        Directory.CreateDirectory(avatarsFolder);
-    }
+        options.RoutePrefix = "api/swagger";
+        options.SwaggerEndpoint("/api/swagger/v1/swagger.json", "Tolk API v1");
+    });
 }
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(avatarsFolder),
-    RequestPath = "/api/v1/users/avatar"
-});
 
-var attachmanetsFolder = Path.Combine(Directory.GetCurrentDirectory(), "attachments");
-if (!Directory.Exists(attachmanetsFolder))
-{
-    if (OperatingSystem.IsLinux())
-        Directory.CreateDirectory(attachmanetsFolder, defaultFolderCreateMode);
-    else
-    {
-        Directory.CreateDirectory(attachmanetsFolder);
-    }
-}
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(attachmanetsFolder),
-    RequestPath = "/api/v1/posts/image"
-});
+app.UseForwardedHeaders();
+
+// var defaultFolderCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite |
+//                               UnixFileMode.GroupRead |
+//                               UnixFileMode.GroupWrite |
+//                               UnixFileMode.OtherRead |
+//                               UnixFileMode.OtherWrite; 
+// var avatarsFolder = Path.Combine(Directory.GetCurrentDirectory(), "avatars");
+// if (!Directory.Exists(avatarsFolder))
+// {
+//     if (OperatingSystem.IsLinux())
+//         Directory.CreateDirectory(avatarsFolder, defaultFolderCreateMode);
+//     else
+//     {
+//         Directory.CreateDirectory(avatarsFolder);
+//     }
+// }
+// app.UseStaticFiles(new StaticFileOptions
+// {
+//     FileProvider = new PhysicalFileProvider(avatarsFolder),
+//     RequestPath = "/api/v1/users/avatar"
+// });
+//
+// var attachmanetsFolder = Path.Combine(Directory.GetCurrentDirectory(), "attachments");
+// if (!Directory.Exists(attachmanetsFolder))
+// {
+//     if (OperatingSystem.IsLinux())
+//         Directory.CreateDirectory(attachmanetsFolder, defaultFolderCreateMode);
+//     else
+//     {
+//         Directory.CreateDirectory(attachmanetsFolder);
+//     }
+// }
+// app.UseStaticFiles(new StaticFileOptions
+// {
+//     FileProvider = new PhysicalFileProvider(attachmanetsFolder),
+//     RequestPath = "/api/v1/posts/image"
+// });
 
 app.UsePathBase("/api");
 

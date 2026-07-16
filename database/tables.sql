@@ -1,38 +1,14 @@
 CREATE EXTENSION IF NOT EXISTS "ltree";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 CREATE SCHEMA IF NOT EXISTS main;
 CREATE SCHEMA IF NOT EXISTS users;
 CREATE SCHEMA IF NOT EXISTS groups;
 
-CREATE OR REPLACE FUNCTION main.uuid_generate_v7() RETURNS UUID AS
-$$
-DECLARE
-    v_unix_ms BIGINT;
-    v_rand    BYTEA;
-    v_rand_hex TEXT;
-BEGIN
-    v_unix_ms := FLOOR(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT;
-    v_rand := public.gen_random_bytes(10);
-    v_rand := set_byte(v_rand, 0, (get_byte(v_rand, 0) & 15) | 112);
-    v_rand := set_byte(v_rand, 2, (get_byte(v_rand, 2) & 63) | 128);
-    v_rand_hex := encode(v_rand, 'hex');
-
-    RETURN (
-        lpad(to_hex(v_unix_ms), 12, '0') ||
-        substr(v_rand_hex, 1, 4) ||
-        substr(v_rand_hex, 5, 4) ||
-        substr(v_rand_hex, 9, 4) ||
-        substr(v_rand_hex, 13, 12)
-    )::UUID;
-END;
-$$ LANGUAGE plpgsql VOLATILE;
-
 -- Пользователи
 CREATE TABLE IF NOT EXISTS users.users
 (
-    id           UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
+    id           UUID PRIMARY KEY DEFAULT uuidv7(),
     username     TEXT        NOT NULL,
     display_name TEXT        NOT NULL,
     email        TEXT,
@@ -57,36 +33,56 @@ CREATE TABLE IF NOT EXISTS users.profile_info
     karma               BIGINT DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS users.refresh_tokens
+CREATE TABLE IF NOT EXISTS users.auth_sessions
+(
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
+    user_id         UUID        NOT NULL REFERENCES users.users (id) ON DELETE CASCADE,
+    user_agent      TEXT,
+    last_ip_address INET,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at    TIMESTAMPTZ,
+    revoked_at      TIMESTAMPTZ,
+    revoked_reason  TEXT
+);
+
+CREATE INDEX idx_auth_sessions_user_id_active
+    ON users.auth_sessions (user_id, last_used_at DESC)
+    WHERE revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS users.auth_session_tokens
 (
     -- id сессии
-    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
-    user_id    UUID        NOT NULL REFERENCES users.users (id) ON DELETE CASCADE,
+    id         UUID PRIMARY KEY DEFAULT uuidv7(),
+    session_id UUID        NOT NULL REFERENCES users.auth_sessions (id) ON DELETE CASCADE,
 
     -- HMAC-SHA256 hash of the refresh token. The raw token is only stored in the user's HttpOnly cookie.
-    token_hash TEXT UNIQUE NOT NULL,
+    token_hash     TEXT UNIQUE NOT NULL,
+    replaced_by_id UUID REFERENCES users.auth_session_tokens (id),
 
     -- Метаданные для безопасности и вкладки "Активные сеансы"
-    user_agent TEXT,
     ip_address INET, -- Специальный тип данных в Postgres для IP-адресов
 
     expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ      DEFAULT NOW(),
+    created_at TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
 
     -- Мы используем мягкое удаление (или отзыв) токена
     revoked_at TIMESTAMPTZ
 );
 
 -- Индекс для супер-быстрого поиска токена при обновлении (когда бекенд проверяет рефреш)
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON users.refresh_tokens (token_hash) WHERE revoked_at IS NULL;
+CREATE INDEX idx_auth_session_tokens_token_hash_active
+    ON users.auth_session_tokens (token_hash)
+    WHERE revoked_at IS NULL;
 -- Индекс для получения списка всех активных сеансов пользователя
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON users.refresh_tokens (user_id) WHERE revoked_at IS NULL;
+CREATE INDEX idx_auth_session_tokens_session_id_active
+    ON users.auth_session_tokens (session_id)
+    WHERE revoked_at IS NULL;
 
 -- OAuth
 -- Справочник провайдеров (чтобы легко добавлять новые и отключать старые)
 CREATE TABLE IF NOT EXISTS users.auth_providers
 (
-    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
+    id         UUID PRIMARY KEY DEFAULT uuidv7(),
     name       TEXT UNIQUE NOT NULL,          -- 'google', 'apple', 'github', 'telegram'
     is_active  BOOLEAN          DEFAULT TRUE, -- Возможность выключить логин через провайдера
     created_at TIMESTAMPTZ      DEFAULT NOW(),
@@ -137,7 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_user_subscribe_to_date ON users.user_subscribe (t
 -- ГРУППЫ
 CREATE TABLE IF NOT EXISTS groups.groups
 (
-    id           UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
+    id           UUID PRIMARY KEY DEFAULT uuidv7(),
     alias        TEXT NOT NULL,
     display_name TEXT NOT NULL,
     description  TEXT,
@@ -161,7 +157,7 @@ CREATE TABLE IF NOT EXISTS groups.group_info
 
 CREATE TABLE IF NOT EXISTS groups.groups_roles
 (
-    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
+    id         UUID PRIMARY KEY DEFAULT uuidv7(),
     name       TEXT NOT NULL UNIQUE,
     can_create BOOLEAN          DEFAULT FALSE,
     can_update BOOLEAN          DEFAULT FALSE,
@@ -254,7 +250,7 @@ CREATE INDEX IF NOT EXISTS idx_user_posts_user_post
 
 CREATE TABLE IF NOT EXISTS main.reaction_types
 (
-    id         UUID PRIMARY KEY     DEFAULT main.uuid_generate_v7(),
+    id         UUID PRIMARY KEY     DEFAULT uuidv7(),
     name       TEXT UNIQUE NOT NULL,              -- 'upvote', 'downvote', 'heart', 'fire', etc.
     weight     FLOAT       NOT NULL DEFAULT 0,    -- Влияние реакции на рейтинг (score) поста/комментария
     icon       TEXT,                              -- Опционально: ссылка на графику эмодзи/иконки
@@ -350,7 +346,7 @@ CREATE INDEX IF NOT EXISTS idx_comment_reaction_stats_reaction_id
 -- Вложения к постам (Attachments)
 CREATE TABLE IF NOT EXISTS main.post_attachments
 (
-    id         UUID PRIMARY KEY DEFAULT main.uuid_generate_v7(),
+    id         UUID PRIMARY KEY DEFAULT uuidv7(),
     post_id    BIGINT NOT NULL REFERENCES main.posts (id) ON DELETE CASCADE,
     type       TEXT   NOT NULL,            -- 'image/jpeg', 'video/mp4'
     url        TEXT   NOT NULL,

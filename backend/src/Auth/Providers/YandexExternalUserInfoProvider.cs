@@ -6,20 +6,20 @@ namespace TolkApi.Auth.Providers;
 
 public class YandexExternalUserInfoProvider(HttpClient httpClient) : IAbstractExternalUserInfoProvider
 {
-    public async Task<SocialProfileInfo?> GetUserInfo(string token)
+    public async Task<SocialProfileInfo?> GetUserInfo(string token, CancellationToken cancellationToken)
     {
         // Эндпоинт Яндекс.ID для получения информации о пользователе
-        var request = new HttpRequestMessage(HttpMethod.Get, "info");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "info");
 
         // ВАЖНО: Схема авторизации у Яндекса - "OAuth", а не "Bearer"
         request.Headers.Authorization = new AuthenticationHeaderValue("OAuth", token);
 
         // Отправляем запрос
-        var response = await httpClient.SendAsync(request);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
-            var errorContent = await response.Content.ReadAsStringAsync();
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
             Console.WriteLine("Ошибка получения данных от Яндекса. Статус: {Status}. Ответ: {Error}",
                 response.StatusCode, errorContent);
             return null; // Токен невалидный, просрочен или отозван
@@ -27,7 +27,7 @@ public class YandexExternalUserInfoProvider(HttpClient httpClient) : IAbstractEx
 
         // Парсим ответ без создания жестких C# классов под ответ Яндекса
         // JsonElement работает очень быстро и экономит память
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
 
         try
         {

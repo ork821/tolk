@@ -6,16 +6,16 @@ namespace TolkApi.Auth.Providers;
 
 public class VkExternalUserInfoProvider(HttpClient httpClient): IAbstractExternalUserInfoProvider
 {
-    public async Task<SocialProfileInfo?> GetUserInfo(string token)
+    public async Task<SocialProfileInfo?> GetUserInfo(string token, CancellationToken cancellationToken)
     {
         // Формируем URL. Просим VK вернуть аватарку (photo_200)
             var url = "method/users.get?v=5.199&fields=screen_name,photo_200";
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
             
             // В современных версиях VK API токен можно передавать по стандарту в заголовке Bearer
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var response = await httpClient.SendAsync(request);
+            using var response = await httpClient.SendAsync(request, cancellationToken);
 
             // Эта проверка сработает только если упала сеть или сервер VK недоступен
             if (!response.IsSuccessStatusCode)
@@ -24,7 +24,7 @@ public class VkExternalUserInfoProvider(HttpClient httpClient): IAbstractExterna
                 return null; 
             }
 
-            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
 
             // А вот здесь мы проверяем реальную логическую ошибку VK (например, невалидный токен)
             if (json.TryGetProperty("error", out var errorElement))
