@@ -19,6 +19,36 @@
       "skillPath": "skills/postgresql-code-review/SKILL.md",
       "computedHash": "1167ec9449aa866e16bc7449e05ab4d391cdce95a0b0c5e1155b793160471eb5"
     },
+    "security-fuzzing": {
+      "source": "eyadkelleh/awesome-skills-security",
+      "sourceType": "github",
+      "skillPath": "skills/security-fuzzing/SKILL.md",
+      "computedHash": "0485e8ec67895f127f83e3fe0d75a1dc73c2f8ec7268957a4976f6c3e5cf599e"
+    },
+    "security-passwords": {
+      "source": "eyadkelleh/awesome-skills-security",
+      "sourceType": "github",
+      "skillPath": "skills/security-passwords/SKILL.md",
+      "computedHash": "2e678444c9db512586acd8e43d81b71196df08ab34324c7866dae22488933299"
+    },
+    "security-patterns": {
+      "source": "eyadkelleh/awesome-skills-security",
+      "sourceType": "github",
+      "skillPath": "skills/security-patterns/SKILL.md",
+      "computedHash": "feda3b13e78ad18f53046328dd7a336a3ccf9b6f5d9f47e3a8d6ebb5d600ca8b"
+    },
+    "security-payloads": {
+      "source": "eyadkelleh/awesome-skills-security",
+      "sourceType": "github",
+      "skillPath": "skills/security-payloads/SKILL.md",
+      "computedHash": "a9bcb0469a6915f3f9e648a3981308468907087c140d433feadb68e5a2b49398"
+    },
+    "security-webshells": {
+      "source": "eyadkelleh/awesome-skills-security",
+      "sourceType": "github",
+      "skillPath": "skills/security-webshells/SKILL.md",
+      "computedHash": "6ebdeb5f2e3bfed1b310d07bdad4741bdcdc9c9c12b6782af3180e5b1db5a03a"
+    },
     "supabase-postgres-best-practices": {
       "source": "supabase/agent-skills",
       "sourceType": "github",

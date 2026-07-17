@@ -1,14 +1,16 @@
 "use client";
 
-import {use, useEffect} from "react";
+import {useEffect} from "react";
 import {useInfiniteQuery} from "@tanstack/react-query";
 import {useInView} from "react-intersection-observer";
+import {usePathname} from "next/navigation";
 import {BackButton} from "@/components/back-button";
 import {FollowList, FollowListSkeleton} from "@/components/follow-list";
 import {getUserSubscribes} from "@/lib/api";
 
-export default function FollowingPage({params}: {params: Promise<{ username: string }>}) {
-    const {username} = use(params);
+export default function FollowingPage() {
+    const pathname = usePathname();
+    const username = decodeURIComponent(pathname.split("/").filter(Boolean)[1] ?? "");
     const {ref, inView} = useInView({rootMargin: "500px"});
     const {
         data,

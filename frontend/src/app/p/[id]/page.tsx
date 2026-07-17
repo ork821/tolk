@@ -10,15 +10,15 @@ import {SubmitForm} from "@/components/input-form";
 import {CommentFeed} from "@/components/comment-feed";
 import {useAuth} from "@/hooks/use-auth";
 import {client, createComment, createPost} from "@/lib/api";
-import {useRouter} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
 import {usePostMetadataBatch} from "@/hooks/use-post-metadata-batch";
 
-export default function PostThreadPage({params}: {params: Promise<{id: string}>}) {
+export default function PostThreadPage() {
     const {user} = useAuth();
     const router = useRouter();
     const queryClient = useQueryClient();
-    const resolvedParams = React.use(params);
-    const postId = resolvedParams.id;
+    const pathname = usePathname();
+    const postId = pathname.split("/").filter(Boolean).at(-1) ?? "";
 
     const {data, status} = useQuery({
         queryKey: ["posts", postId, "thread"],

@@ -2,7 +2,7 @@
 
 import {use, useEffect} from "react";
 import {useQuery} from "@tanstack/react-query";
-import {useRouter} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
 import {Loader2} from "lucide-react";
 import {ProfileHeader, type ProfileUser} from "@/components/profile-header";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
@@ -10,8 +10,9 @@ import {PostFeed} from "@/components/post-feed";
 import {client, getUserPosts, getUserReactedPosts, getUserReplies} from "@/lib/api";
 import {useAuth} from "@/hooks/use-auth";
 
-export default function UserProfilePage({params}: {params: Promise<{ username: string }>}) {
-    const {username} = use(params);
+export default function UserProfilePage() {
+    const pathname = usePathname();
+    const username = decodeURIComponent(pathname.split("/").filter(Boolean)[1] ?? "");
     const router = useRouter();
     const {user: currentUser} = useAuth();
     const isCurrentUserBySession = currentUser?.username.toLowerCase() === username.toLowerCase();

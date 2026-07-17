@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
+    "build:spa": "node scripts/build-spa.mjs",
     "start": "next start",
     "gen-client": "npx openapi-typescript http://localhost:3000/api/swagger/v1/swagger.json -o ./src/lib/api/v1.d.ts"
   },
