@@ -4,6 +4,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.Extensions.Caching.Distributed;
@@ -11,10 +12,13 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Serilog;
+using Serilog.Events;
 using TolkApi.Auth;
 using TolkApi.Auth.Providers;
 using TolkApi.Comments;
 using TolkApi.Database;
+using TolkApi.Donations;
 using TolkApi.Posts;
 using TolkApi.Reactions;
 using TolkApi.Users;
@@ -26,6 +30,24 @@ using IPNetwork = System.Net.IPNetwork;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables("TOLK_");
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    var fileLogging = context.Configuration.GetSection("FileLogging");
+
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .WriteTo.File(
+            path: fileLogging["Path"] ?? "logs/tolk-.log",
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: fileLogging.GetValue<int?>("RetainedFileCountLimit") ?? 30,
+            fileSizeLimitBytes: fileLogging.GetValue<long?>("FileSizeLimitBytes") ?? 100 * 1024 * 1024,
+            rollOnFileSizeLimit: true,
+            shared: true,
+            flushToDiskInterval: TimeSpan.FromSeconds(1));
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CORS",
@@ -80,6 +102,9 @@ builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<CommentsService>();
 builder.Services.AddSingleton<ReactionService>();
 builder.Services.AddSingleton<TokenService>();
+builder.Services.Configure<YooMoneyOptions>(
+    builder.Configuration.GetSection(YooMoneyOptions.SectionName));
+builder.Services.AddSingleton<YooMoneyNotificationService>();
 builder.Services.AddScoped<ExternalUserInfoProviderFactory>();
 builder.Services.AddHttpClient<YandexExternalUserInfoProvider>(client =>
 {
@@ -187,13 +212,38 @@ builder.Services.AddOptions<CookieAuthenticationOptions>()
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 builder.Services.AddApiVersioning(options => { options.ReportApiVersions = true; })
     .AddMvc();
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck(
+        "self",
+        () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
+        tags: ["live", "ready"])
+    .AddCheck<DatabaseHealthCheck>(
+        "postgresql",
+        tags: ["ready"],
+        timeout: TimeSpan.FromSeconds(5));
 
 
 var app = builder.Build();
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.GetLevel = (httpContext, _, exception) =>
+    {
+        if (exception != null || httpContext.Response.StatusCode >= StatusCodes.Status500InternalServerError)
+            return LogEventLevel.Error;
+
+        return httpContext.Request.Path.StartsWithSegments("/health")
+            ? LogEventLevel.Debug
+            : LogEventLevel.Information;
+    };
+});
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
@@ -259,7 +309,14 @@ app.UseCookiePolicy(new CookiePolicyOptions
 });
 
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("live")
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 
 
 app.Run();

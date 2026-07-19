@@ -8,7 +8,10 @@ using TolkApi.Database;
 
 namespace TolkApi.Auth;
 
-public class AuthService(DatabaseContext databaseContext, AuthOptions authOptions)
+public class AuthService(
+    DatabaseContext databaseContext,
+    AuthOptions authOptions,
+    ILogger<AuthService> logger)
 {
     private string HashRefreshToken(string refreshToken)
     {
@@ -48,7 +51,7 @@ public class AuthService(DatabaseContext databaseContext, AuthOptions authOption
         }
         catch (Exception e)
         {
-            Console.WriteLine("Failed save token", e);
+            logger.LogError(e, "Failed to save refresh token for session {SessionId}", sessionId);
             return false;
         }
     }

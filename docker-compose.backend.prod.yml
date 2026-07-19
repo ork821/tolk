@@ -1,0 +1,91 @@
+services:
+  api:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      TOLK_AllowedHosts: ${DOMAIN:?DOMAIN is required}
+      ConnectionStrings__DataBase: Host=${DB_HOST:?DB_HOST is required};Port=${DB_PORT:-55432};Database=${DB_NAME:-tolk};Username=${APP_DB_USER:?APP_DB_USER is required};Password=${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}
+      JwtSettings__AccessSecret: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JwtSettings__RefreshTokenHashSecret: ${JWT_REFRESH_TOKEN_HASH_SECRET:?JWT_REFRESH_TOKEN_HASH_SECRET is required}
+      YooMoney__NotificationSecret: ${YOOMONEY_NOTIFICATION_SECRET:?YOOMONEY_NOTIFICATION_SECRET is required}
+      TOLK_Host: https://${DOMAIN}
+      TOLK_AllowedOrigins__0: https://${DOMAIN}
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/attachments:uid=1654,gid=1654
+      - /app/avatars:uid=1654,gid=1654
+    volumes:
+      - api_logs:/app/logs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          memory: 256M
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - app_net
+
+  nginx:
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /tmp/nginx
+        envsubst '$${DOMAIN}' < /etc/nginx/templates/nginx.conf.template > /tmp/nginx/nginx.conf
+        exec nginx -c /tmp/nginx/nginx.conf -g 'daemon off;'
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/templates/nginx.conf.template:ro
+      - ${FRONTEND_DIST_PATH:?FRONTEND_DIST_PATH is required}:/usr/share/nginx/html:ro
+      - ${SSL_CERT_PATH:?SSL_CERT_PATH is required}:/etc/nginx/ssl/server.crt:ro
+      - ${SSL_KEY_PATH:?SSL_KEY_PATH is required}:/etc/nginx/ssl/server.key:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    driver: bridge
+
+volumes:
+  api_logs:

@@ -1,60 +1,50 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using TolkApi.Auth.Providers.DTO;
 
 namespace TolkApi.Auth.Providers;
 
-public class YandexExternalUserInfoProvider(HttpClient httpClient) : IAbstractExternalUserInfoProvider
+public class YandexExternalUserInfoProvider(
+    HttpClient httpClient,
+    ILogger<YandexExternalUserInfoProvider> logger) : IAbstractExternalUserInfoProvider
 {
     public async Task<SocialProfileInfo?> GetUserInfo(string token, CancellationToken cancellationToken)
     {
-        // Эндпоинт Яндекс.ID для получения информации о пользователе
         using var request = new HttpRequestMessage(HttpMethod.Get, "info");
-
-        // ВАЖНО: Схема авторизации у Яндекса - "OAuth", а не "Bearer"
         request.Headers.Authorization = new AuthenticationHeaderValue("OAuth", token);
 
-        // Отправляем запрос
         using var response = await httpClient.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
-            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            Console.WriteLine("Ошибка получения данных от Яндекса. Статус: {Status}. Ответ: {Error}",
-                response.StatusCode, errorContent);
-            return null; // Токен невалидный, просрочен или отозван
+            logger.LogWarning(
+                "Yandex user info request failed with status {StatusCode}",
+                response.StatusCode);
+            return null;
         }
-
-        // Парсим ответ без создания жестких C# классов под ответ Яндекса
-        // JsonElement работает очень быстро и экономит память
-        var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
 
         try
         {
-            // Извлекаем поля согласно официальной документации Яндекса
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>(
+                cancellationToken: cancellationToken);
             var id = json.GetProperty("id").GetString();
-
-            // У пользователя может не быть имени, тогда берем логин
-            var name = json.GetProperty("login").GetString();
-
-            // Email может быть скрыт настройками приватности, проверяем безопасно
-            var email = json.TryGetProperty("default_email", out var emailProp) &&
-                        emailProp.ValueKind != JsonValueKind.Null
-                ? emailProp.GetString()
+            var username = json.GetProperty("login").GetString();
+            var email = json.TryGetProperty("default_email", out var emailProperty) &&
+                        emailProperty.ValueKind != JsonValueKind.Null
+                ? emailProperty.GetString()
                 : null;
 
-
-            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name))
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(username))
             {
-                Console.WriteLine("Яндекс вернул успешный ответ, но отсутствуют обязательные поля id или name.");
+                logger.LogWarning("Yandex user info response is missing required fields");
                 return null;
             }
 
-            return new SocialProfileInfo(id, name, email, null, null);
+            return new SocialProfileInfo(id, username, email, null, null);
         }
-        catch (Exception ex)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            Console.WriteLine("Ошибка парсинга JSON от Яндекса.", ex);
+            logger.LogWarning(exception, "Failed to parse Yandex user info response");
             return null;
         }
     }

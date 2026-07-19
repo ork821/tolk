@@ -1,0 +1,1 @@
+-- Intentionally empty. Verifies that Flyway can discover, validate and record migrations.

@@ -5,7 +5,7 @@ using NpgsqlTypes;
 
 namespace TolkApi.Users;
 
-public class UsersService(DatabaseContext databaseContext)
+public class UsersService(DatabaseContext databaseContext, ILogger<UsersService> logger)
 {
     public async Task<PostDto[]> GetUserPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId)
     {
@@ -269,7 +269,11 @@ public class UsersService(DatabaseContext databaseContext)
         }
         catch (Exception e)
         {
-            Console.WriteLine("Subscribe failed: " + e.Message);
+            logger.LogError(
+                e,
+                "Failed to subscribe user {UserId} to {TargetUsername}",
+                userId,
+                username);
             return false;
         }
     }
@@ -290,7 +294,11 @@ public class UsersService(DatabaseContext databaseContext)
         }
         catch (Exception e)
         {
-            Console.WriteLine("Unsubscribe failed", e);
+            logger.LogError(
+                e,
+                "Failed to unsubscribe user {UserId} from {TargetUsername}",
+                userId,
+                username);
             return false;
         }
     }

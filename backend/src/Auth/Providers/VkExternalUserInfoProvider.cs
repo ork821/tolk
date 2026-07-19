@@ -4,75 +4,72 @@ using TolkApi.Auth.Providers.DTO;
 
 namespace TolkApi.Auth.Providers;
 
-public class VkExternalUserInfoProvider(HttpClient httpClient): IAbstractExternalUserInfoProvider
+public class VkExternalUserInfoProvider(
+    HttpClient httpClient,
+    ILogger<VkExternalUserInfoProvider> logger) : IAbstractExternalUserInfoProvider
 {
     public async Task<SocialProfileInfo?> GetUserInfo(string token, CancellationToken cancellationToken)
     {
-        // Формируем URL. Просим VK вернуть аватарку (photo_200)
-            var url = "method/users.get?v=5.199&fields=screen_name,photo_200";
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            
-            // В современных версиях VK API токен можно передавать по стандарту в заголовке Bearer
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        const string url = "method/users.get?v=5.199&fields=screen_name,photo_200";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
 
-            // Эта проверка сработает только если упала сеть или сервер VK недоступен
-            if (!response.IsSuccessStatusCode)
-            {
-                Console.WriteLine("Сетевая ошибка при обращении к VK API. Статус: {0}", response.StatusCode);
-                return null; 
-            }
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning(
+                "VK user info request failed with status {StatusCode}",
+                response.StatusCode);
+            return null;
+        }
 
-            var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+        try
+        {
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>(
+                cancellationToken: cancellationToken);
 
-            // А вот здесь мы проверяем реальную логическую ошибку VK (например, невалидный токен)
             if (json.TryGetProperty("error", out var errorElement))
             {
                 var errorCode = errorElement.GetProperty("error_code").GetInt32();
-                var errorMsg = errorElement.GetProperty("error_msg").GetString();
-                
-                Console.WriteLine("VK API вернул ошибку. Код: {0}, Сообщение: {1}", errorCode, errorMsg);
+                var errorMessage = errorElement.GetProperty("error_msg").GetString();
+
+                logger.LogWarning(
+                    "VK API returned error {ErrorCode}: {ErrorMessage}",
+                    errorCode,
+                    errorMessage);
                 return null;
             }
 
-            try
+            var users = json.GetProperty("response");
+            if (users.GetArrayLength() == 0)
             {
-                // Успешный ответ VK всегда лежит в массиве "response"
-                var userArray = json.GetProperty("response");
-                if (userArray.GetArrayLength() == 0)
-                    return null;
-
-                var user = userArray[0];
-
-                // ID у ВК числовой, переводим в строку для универсальности
-                var id = user.GetProperty("id").GetInt64().ToString(); 
-                
-                var firstName = user.GetProperty("first_name").GetString();
-                var lastName = user.GetProperty("last_name").GetString();
-                var fullName = $"{firstName} {lastName}".Trim();
-                var username = user.GetProperty("screen_name").GetString();
-
-                string? avatarUrl = null;
-                if (user.TryGetProperty("photo_200", out var photoProp) && photoProp.ValueKind != JsonValueKind.Null)
-                {
-                    avatarUrl = photoProp.GetString();
-                    
-                    // ВК иногда отдает заглушку вместо реального фото, отфильтруем её (опционально)
-                    if (avatarUrl != null && avatarUrl.Contains("camera_200.png"))
-                    {
-                        avatarUrl = null;
-                    }
-                }
-
-                // Email мы отсюда не достанем, передаем null. 
-                // Если он нужен, его придется принимать отдельным параметром от фронтенда вместе с токеном.
-                return new SocialProfileInfo(id, username, null, fullName, avatarUrl);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Ошибка парсинга JSON успешного ответа от ВКонтакте.", ex);
+                logger.LogWarning("VK user info response does not contain a user");
                 return null;
             }
+
+            var user = users[0];
+            var id = user.GetProperty("id").GetInt64().ToString();
+            var firstName = user.GetProperty("first_name").GetString();
+            var lastName = user.GetProperty("last_name").GetString();
+            var displayName = $"{firstName} {lastName}".Trim();
+            var username = user.GetProperty("screen_name").GetString();
+
+            string? avatarUrl = null;
+            if (user.TryGetProperty("photo_200", out var photoProperty) &&
+                photoProperty.ValueKind != JsonValueKind.Null)
+            {
+                avatarUrl = photoProperty.GetString();
+                if (avatarUrl?.Contains("camera_200.png", StringComparison.Ordinal) == true)
+                    avatarUrl = null;
+            }
+
+            return new SocialProfileInfo(id, username, null, displayName, avatarUrl);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Failed to parse VK user info response");
+            return null;
+        }
     }
 }

@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-tolk}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATA: /var/lib/postgresql/18/docker
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer --data-checksums"
+      APP_DB_USER: ${APP_DB_USER:?APP_DB_USER is required}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    ports:
+      - "${DB_BIND_ADDRESS:?DB_BIND_ADDRESS is required}:${DB_PORT:-34543}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./database/config/postgresql.prod.conf:/etc/postgresql/postgresql.conf:ro
+      - ./database/config/pg_hba.prod.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./database/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql:ro
+      - ./database/functions.sql:/docker-entrypoint-initdb.d/02-functions.sql:ro
+      - ./database/init.sh:/docker-entrypoint-initdb.d/03-init.sh:ro
+      - ./database/defaults.sql:/docker-entrypoint-initdb.d/04-defaults.sql:ro
+    shm_size: 1gb
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          memory: 768M
+    restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  migrate:
+    image: flyway/flyway:12.11.0-alpine
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${DB_NAME:-tolk}
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_SCHEMAS: public,main,users,groups
+      FLYWAY_CONNECT_RETRIES: 60
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_BASELINE_VERSION: "-1"
+      FLYWAY_CLEAN_DISABLED: "true"
+      FLYWAY_VALIDATE_MIGRATION_NAMING: "true"
+      FLYWAY_OUT_OF_ORDER: "false"
+    volumes:
+      - ./database/migrations:/flyway/sql:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  pgdata:

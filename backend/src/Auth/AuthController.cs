@@ -15,7 +15,8 @@ namespace TolkApi.Auth;
 public class AuthController(
     AuthService authService,
     TokenService tokenService,
-    ExternalUserInfoProviderFactory externalUserInfoProviderFactory
+    ExternalUserInfoProviderFactory externalUserInfoProviderFactory,
+    ILogger<AuthController> logger
 )
     : ControllerBase
 {
@@ -115,7 +116,7 @@ public class AuthController(
 
         if (rotation?.ShouldRevokeAll == true && rotation.UserId.HasValue)
         {
-            Console.WriteLine($"Refresh token reuse detected for user {rotation.UserId}");
+            logger.LogWarning("Refresh token reuse detected for user {UserId}", rotation.UserId);
             await _authService.RevokeAllRefreshTokens(rotation.UserId.Value, null);
             return Unauthorized();
         }
