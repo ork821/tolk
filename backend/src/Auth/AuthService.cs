@@ -164,7 +164,8 @@ public class AuthService(
             return new ExternalOAuthLoginDto(
                 reader.GetGuid(0),
                 reader.GetString(1),
-                reader.GetBoolean(2)
+                reader.GetBoolean(2),
+                reader.IsDBNull(3) ? null : reader.GetDateTime(3)
                 );
         }
         return null;

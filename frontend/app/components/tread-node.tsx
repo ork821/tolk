@@ -9,7 +9,7 @@ import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "~/compon
 import {cn, formatCompactNumber} from "~/lib/utils";
 import type {PostCardProps} from "~/components/post-card";
 import {client, type GetReactionsDto} from "~/lib/api";
-import {UserAvatar} from "~/components/user-avatar";
+import {getAuthorDisplayName, UserAvatar} from "~/components/user-avatar";
 
 interface ThreadNodeProps {
     post: PostCardProps;
@@ -133,12 +133,13 @@ function ActiveThreadNode({post, isLast = false, initialReactions}: ThreadNodePr
     const handleShare = async (e: React.MouseEvent) => {
         e.stopPropagation();
         const postUrl = `${window.location.origin}/p/${post.id}`;
+        const authorName = getAuthorDisplayName(post.author);
 
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: `Пост от ${post.author.displayName}`,
-                    text: `Смотри, что пишет ${post.author.displayName}: ${post.content.substring(0, 50)}...`,
+                    title: `Пост от ${authorName}`,
+                    text: `Смотри, что пишет ${authorName}: ${post.content.substring(0, 50)}...`,
                     url: postUrl,
                 });
             } catch (error) {
@@ -161,20 +162,28 @@ function ActiveThreadNode({post, isLast = false, initialReactions}: ThreadNodePr
             <div className="min-w-0 flex-1 pb-2">
                 <div className="flex items-center justify-between">
                     <div className="flex min-w-0 items-center gap-1 overflow-hidden">
-                        <Link
-                            to={`/u/${post.author.username}`}
-                            className="truncate font-bold hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {post.author.displayName}
-                        </Link>
-                        <Link
-                            to={`/u/${post.author.username}`}
-                            className="truncate text-sm text-muted-foreground"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            @{post.author.username}
-                        </Link>
+                        {post.author.isDeleted ? (
+                            <span className="truncate font-bold text-muted-foreground">
+                                {getAuthorDisplayName(post.author)}
+                            </span>
+                        ) : (
+                            <>
+                                <Link
+                                    to={`/u/${post.author.username}`}
+                                    className="truncate font-bold hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {post.author.displayName}
+                                </Link>
+                                <Link
+                                    to={`/u/${post.author.username}`}
+                                    className="truncate text-sm text-muted-foreground"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    @{post.author.username}
+                                </Link>
+                            </>
+                        )}
                         <span className="text-sm text-muted-foreground">·</span>
                         <span className="text-sm text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</span>
                         {post.updatedAt && (
@@ -280,7 +289,12 @@ function ThreadRail({
             {post.deletedAt ? (
                 <div className="relative z-10 size-10 shrink-0 rounded-full border border-dashed border-border bg-muted" />
             ) : (
-                <UserAvatar username={post.author.username} avatarUrl={post.author.avatarUrl} className="relative z-10 size-10 shrink-0" />
+                <UserAvatar
+                    username={post.author.username}
+                    avatarUrl={post.author.avatarUrl}
+                    isDeleted={post.author.isDeleted}
+                    className="relative z-10 size-10 shrink-0"
+                />
             )}
         </div>
     );

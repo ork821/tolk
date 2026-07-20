@@ -6,5 +6,7 @@ public record ReplyAuthorDto(
     [property: Required]
     string Username,
     [property: Required]
-    string DisplayName
+    string DisplayName,
+    [property: Required]
+    bool IsDeleted
 );

@@ -586,6 +586,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/donations/yoomoney/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/feed": {
         parameters: {
             query?: never;
@@ -1900,6 +1953,7 @@ export interface components {
             username: string;
             displayName: string;
             avatarUrl?: string | null;
+            isDeleted: boolean;
         };
         CommentEntity: {
             id: string;
@@ -2083,6 +2137,7 @@ export interface components {
         ReplyAuthorDto: {
             username: string;
             displayName: string;
+            isDeleted: boolean;
         };
         SearchUserDto: {
             username: string;

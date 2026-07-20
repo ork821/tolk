@@ -5,7 +5,7 @@ import {useInfiniteQuery, useMutation, useQueryClient} from "@tanstack/react-que
 import {Flame, Loader2, MessageCircle, Skull, Trash2} from "lucide-react";
 import {Button} from "~/components/ui/button";
 import {SubmitForm} from "~/components/input-form";
-import {UserAvatar} from "~/components/user-avatar";
+import {getAuthorDisplayName, UserAvatar} from "~/components/user-avatar";
 import {useAuth} from "~/hooks/use-auth";
 import {useCommentMetadataBatch} from "~/hooks/use-comment-metadata-batch";
 import {cn, formatCompactNumber, formatDateTime} from "~/lib/utils";
@@ -148,7 +148,7 @@ export function CommentNode({comment, metadata}: CommentNodeProps) {
 
                     {isReplying && user && !isDeleted && (
                         <ReplyForm
-                            username={comment.author.username}
+                            username={comment.author.isDeleted ? undefined : comment.author.username}
                             onCancel={() => setIsReplying(false)}
                             onSubmit={(content) => replyMutation.mutateAsync(content).then(() => undefined)}
                         />
@@ -218,6 +218,7 @@ function CommentRail({
                 <UserAvatar
                     username={comment.author.username}
                     avatarUrl={comment.author.avatarUrl}
+                    isDeleted={comment.author.isDeleted}
                     className="h-9 w-9 border border-background"
                 />
             )}
@@ -263,7 +264,7 @@ function ActiveCommentBody({
         <>
             <div className="flex items-center gap-1 overflow-hidden">
                 <span className="truncate text-sm font-bold hover:underline">
-                    {comment.author.displayName}
+                    {getAuthorDisplayName(comment.author)}
                 </span>
                 <span className="text-xs text-muted-foreground" title={formatDateTime(comment.createdAt)}>
                     · {formatDateTime(comment.createdAt)}
@@ -376,7 +377,7 @@ function ReplyForm({
     onCancel,
     onSubmit,
 }: {
-    username: string;
+    username?: string;
     onCancel: () => void;
     onSubmit: (content: string) => Promise<void>;
 }) {
@@ -386,7 +387,7 @@ function ReplyForm({
                 autoFocus
                 onCancel={onCancel}
                 onSubmit={onSubmit}
-                placeholder={`Ответить ${username}...`}
+                placeholder={username ? `Ответить ${username}...` : "Написать ответ..."}
                 submitLabel="Ответить"
                 compact
             />

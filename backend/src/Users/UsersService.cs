@@ -7,6 +7,28 @@ namespace TolkApi.Users;
 
 public class UsersService(DatabaseContext databaseContext, ILogger<UsersService> logger)
 {
+    public async Task<DateTime?> DeleteUser(Guid userId)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand("SELECT users.delete_user(@userId)");
+
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
+        var result = await command.ExecuteScalarAsync();
+
+        return result is DateTime deletedAt ? deletedAt : null;
+    }
+
+    public async Task<bool> RestoreUser(Guid userId, DateTime expectedDeletedAt)
+    {
+        await using var command = databaseContext.GetCon()
+            .CreateCommand("SELECT users.restore_user(@userId, @expectedDeletedAt)");
+
+        command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
+        command.Parameters.Add("expectedDeletedAt", NpgsqlDbType.TimestampTz).Value = expectedDeletedAt;
+
+        return await command.ExecuteScalarAsync() is true;
+    }
+
     public async Task<PostDto[]> GetUserPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId)
     {
         await using var command = databaseContext.GetCon()

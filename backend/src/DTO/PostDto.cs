@@ -40,26 +40,31 @@ public record PostDto(
 {
     public static PostDto FromReader(NpgsqlDataReader reader)
     {
+        var isReplyAuthorDeleted = !reader.IsDBNull(6);
+        var isAuthorDeleted = !reader.IsDBNull(10);
+
         return new PostDto(
             reader.GetInt64(0).ToString(),
             reader.IsDBNull(1) ? null : reader.GetString(1),
             reader.GetInt32(2),
             reader.GetString(3),
             !reader.IsDBNull(4) ? new ReplyAuthorDto(
-                reader.GetString(4),
-                reader.GetString(5)
+                isReplyAuthorDeleted ? string.Empty : reader.GetString(4),
+                isReplyAuthorDeleted ? string.Empty : reader.GetString(5),
+                isReplyAuthorDeleted
             ) : null,
             new AuthorDto(
-                reader.GetString(6),
-                reader.GetString(7),
-                reader.IsDBNull(8) ? null : reader.GetString(8)
+                isAuthorDeleted ? string.Empty : reader.GetString(7),
+                isAuthorDeleted ? string.Empty : reader.GetString(8),
+                isAuthorDeleted || reader.IsDBNull(9) ? null : reader.GetString(9),
+                isAuthorDeleted
             ),
-            reader.GetBoolean(9),
-            reader.GetInt64(10),
-            reader.GetInt64(11),
-            reader.GetDateTime(12),
-            reader.IsDBNull(13) ? null : reader.GetDateTime(13),
-            reader.IsDBNull(14) ? null : reader.GetDateTime(14)
+            reader.GetBoolean(11),
+            reader.GetInt64(12),
+            reader.GetInt64(13),
+            reader.GetDateTime(14),
+            reader.IsDBNull(15) ? null : reader.GetDateTime(15),
+            reader.IsDBNull(16) ? null : reader.GetDateTime(16)
         );
     }
 }

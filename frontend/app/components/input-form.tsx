@@ -31,6 +31,7 @@ export function SubmitForm({
     const { user } = useAuth();
     const [content, setContent] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Автофокус (полезно для инлайн-ответов и модалок)
@@ -122,7 +123,7 @@ export function SubmitForm({
                     !compact && "border-t border-border/50" // Разделитель для больших постов
                 )}>
 
-                    <Popover>
+                    <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
                         <PopoverTrigger asChild>
                             <Button variant="ghost" size="icon"
                                     className={cn("rounded-full text-primary", compact ? "h-8 w-8" : "h-9 w-9")}>
@@ -131,7 +132,7 @@ export function SubmitForm({
                         </PopoverTrigger>
                         {/* w-auto и p-0 убирают рамки Popover'а, чтобы пикер смотрелся органично */}
                         <PopoverContent align="start" className="w-auto p-0 border-none shadow-none z-50">
-                            <EmojiPicker onEmojiSelect={insertEmoji} />
+                            {isEmojiPickerOpen && <EmojiPicker onEmojiSelect={insertEmoji} />}
                         </PopoverContent>
                     </Popover>
 

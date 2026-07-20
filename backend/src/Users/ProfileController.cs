@@ -9,8 +9,26 @@ namespace TolkApi.Users;
 [ApiController]
 [ApiVersion(1.0)]
 [Route("v{version:apiVersion}/profile")]
-public class ProfileController(UsersService usersService) : ControllerBase
+public class ProfileController(
+    UsersService usersService,
+    ILogger<ProfileController> logger) : ControllerBase
 {
+    private const string RefreshTokenCookieName = "refresh_token";
+
+    [IsAuthenticated]
+    [HttpDelete]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> DeleteProfile([FromUserId] Guid userId)
+    {
+        var deletedAt = await usersService.DeleteUser(userId);
+        if (deletedAt == null) return Unauthorized();
+
+        HttpContext.Response.Cookies.Delete(RefreshTokenCookieName);
+        logger.LogInformation("Account {UserId} was scheduled for deletion", userId);
+        return NoContent();
+    }
+
     [IsAuthenticated]
     [HttpPatch]
     [ProducesResponseType(typeof(UpdateProfileInfoDto), StatusCodes.Status200OK)]

@@ -8,5 +8,6 @@ public record ExternalOAuthLoginDto(
     [property: Required]
     string Username,
     [property: Required]
-    bool IsNew
+    bool IsNew,
+    DateTime? DeletedAt
 );

@@ -23,19 +23,22 @@ public record CommentEntity(
 {
     public static CommentEntity FromReader(NpgsqlDataReader reader)
     {
+        var isAuthorDeleted = !reader.IsDBNull(4);
+
         return new CommentEntity(
             reader.GetInt64(0).ToString(),
             new AuthorDto(
-                reader.GetString(1),
-                reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3)
+                isAuthorDeleted ? string.Empty : reader.GetString(1),
+                isAuthorDeleted ? string.Empty : reader.GetString(2),
+                isAuthorDeleted || reader.IsDBNull(3) ? null : reader.GetString(3),
+                isAuthorDeleted
             ),
-            (ContentType)reader.GetInt32(4),
-            reader.GetString(5),
-            reader.GetInt32(6),
-            reader.GetDateTime(7),
-            reader.IsDBNull(8) ? null : reader.GetDateTime(8),
-            reader.IsDBNull(9) ? null : reader.GetDateTime(9)
+            (ContentType)reader.GetInt32(5),
+            reader.GetString(6),
+            reader.GetInt32(7),
+            reader.GetDateTime(8),
+            reader.IsDBNull(9) ? null : reader.GetDateTime(9),
+            reader.IsDBNull(10) ? null : reader.GetDateTime(10)
         );
     }
 }

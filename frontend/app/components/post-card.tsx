@@ -7,7 +7,7 @@ import {Check, ExternalLink, Flame, MessageCircle, Pencil, Repeat2, Trash2, X} f
 import {Button} from "~/components/ui/button";
 import {Card, CardContent, CardFooter, CardHeader} from "~/components/ui/card";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "~/components/ui/tooltip";
-import {UserAvatar} from "~/components/user-avatar";
+import {getAuthorDisplayName, UserAvatar} from "~/components/user-avatar";
 import {client, type GetReactionsDto, type Post, type PostMetadataByPostId, type PostMetadataDto} from "~/lib/api";
 import {cn, formatCompactNumber} from "~/lib/utils";
 
@@ -82,6 +82,7 @@ export function PostCard({post, showAvatar = true, metadata, onClick}: PostCardC
                     <UserAvatar
                         username={post.author.username}
                         avatarUrl={post.author.avatarUrl}
+                        isDeleted={post.author.isDeleted}
                         className="size-10 shrink-0"
                     />
                 )}
@@ -320,6 +321,16 @@ function PostHeader({
 }
 
 function PostAuthorLinks({post}: {post: Post}) {
+    if (post.author.isDeleted) {
+        return (
+            <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+                <span className="truncate text-lg font-bold text-muted-foreground">
+                    {getAuthorDisplayName(post.author)}
+                </span>
+            </div>
+        );
+    }
+
     return (
         <div className="flex min-w-0 flex-1 flex-col items-start gap-1 overflow-hidden">
             <Link
@@ -596,12 +607,13 @@ function canSavePostEdit(currentContent: string, nextContent: string) {
 async function sharePost(event: React.MouseEvent, post: Post) {
     event.stopPropagation();
     const postUrl = `${window.location.origin}/p/${post.id}`;
+    const authorName = getAuthorDisplayName(post.author);
 
     if (navigator.share) {
         try {
             await navigator.share({
-                title: `Пост от ${post.author.displayName}`,
-                text: `Смотри, что пишет ${post.author.displayName}: ${post.content.substring(0, 50)}...`,
+                title: `Пост от ${authorName}`,
+                text: `Смотри, что пишет ${authorName}: ${post.content.substring(0, 50)}...`,
                 url: postUrl,
             });
         } catch (error) {

@@ -7,5 +7,7 @@ public record AuthorDto(
     string Username,
     [property: Required]
     string DisplayName,
-    string? AvatarUrl
+    string? AvatarUrl,
+    [property: Required]
+    bool IsDeleted
 );

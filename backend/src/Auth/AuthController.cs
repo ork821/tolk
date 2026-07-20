@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TolkApi.Auth.DTO;
 using TolkApi.Auth.Providers;
+using TolkApi.Users;
 using TolkApi.Utility;
 
 namespace TolkApi.Auth;
@@ -14,12 +15,14 @@ namespace TolkApi.Auth;
 [Route("v{version:apiVersion}/[controller]")]
 public class AuthController(
     AuthService authService,
+    UsersService usersService,
     TokenService tokenService,
     ExternalUserInfoProviderFactory externalUserInfoProviderFactory,
     ILogger<AuthController> logger
 )
     : ControllerBase
 {
+    private static readonly TimeSpan AccountRecoveryPeriod = TimeSpan.FromDays(30);
     private const string RefreshTokenCookieName = "refresh_token";
     private static readonly HashSet<string> SupportedProviders = ["yandex", "vk"];
     private readonly AuthService _authService = authService;
@@ -34,6 +37,7 @@ public class AuthController(
 
     [HttpPost("{provider}")] // provider = "google"
     [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(DeletedAccountDto), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> SocialLogin(
@@ -69,6 +73,25 @@ public class AuthController(
 
         if (user == null) return Unauthorized();
 
+        if (user.DeletedAt is { } deletedAt)
+        {
+            var restoreUntil = deletedAt.Add(AccountRecoveryPeriod);
+            var canRestore = DateTime.UtcNow < restoreUntil;
+            var recoveryToken = canRestore
+                ? tokenService.GenerateAccountRecoveryToken(
+                    user.UserId,
+                    deletedAt,
+                    Min(DateTime.UtcNow.AddMinutes(10), restoreUntil))
+                : null;
+
+            return Conflict(new DeletedAccountDto(
+                "account_pending_deletion",
+                canRestore,
+                restoreUntil,
+                recoveryToken
+            ));
+        }
+
         // 3. Выдаем НАШИ токены
         
         var expires = DateTime.UtcNow.Add(TimeSpan.FromMinutes(30));
@@ -89,6 +112,66 @@ public class AuthController(
             SameSite = SameSiteMode.Strict
         });
 
+        return Ok(new AuthTokenDto(accessToken, expires));
+    }
+
+    [HttpPost("restore")]
+    [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RestoreAccount(
+        [FromBody] RestoreAccountDto dto,
+        CancellationToken cancellationToken)
+    {
+        var validationResult = await new RestoreAccountDtoValidator().ValidateAsync(dto, cancellationToken);
+        if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
+
+        var recovery = tokenService.ValidateAccountRecoveryToken(dto.RecoveryToken);
+        if (recovery == null) return Unauthorized();
+
+        var restoreUntil = recovery.DeletedAt.Add(AccountRecoveryPeriod);
+        if (DateTime.UtcNow >= restoreUntil)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Account recovery period has expired"
+            });
+        }
+
+        var restored = await usersService.RestoreUser(recovery.UserId, recovery.DeletedAt);
+        if (!restored)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Account state has changed"
+            });
+        }
+
+        var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+        if (string.IsNullOrWhiteSpace(userAgent)) return BadRequest("Invalid UserAgent");
+
+        var sessionId = await _authService.CreateAuthSession(
+            recovery.UserId,
+            userAgent,
+            HttpContext.Connection.RemoteIpAddress?.ToString());
+        if (!sessionId.HasValue) return StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+        var refreshToken = tokenService.GenerateRefreshToken();
+        if (!await _authService.SaveRefreshToken(sessionId.Value, refreshToken, 30))
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+        var expires = DateTime.UtcNow.AddMinutes(30);
+        var accessToken = tokenService.GenerateAccessToken(recovery.UserId, expires);
+
+        HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict
+        });
+
+        logger.LogInformation("Account {UserId} was restored", recovery.UserId);
         return Ok(new AuthTokenDto(accessToken, expires));
     }
 
@@ -136,6 +219,8 @@ public class AuthController(
 
         return Ok(new AuthTokenDto(accessToken, expires));
     }
+
+    private static DateTime Min(DateTime first, DateTime second) => first <= second ? first : second;
 
     [Authorize]
     [HasRefresh]

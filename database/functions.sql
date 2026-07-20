@@ -12,7 +12,7 @@ $$
 DECLARE
     v_username TEXT := lower(p_username);
 BEGIN
-    IF EXISTS (SELECT 1 FROM users.users u WHERE u.username = v_username AND u.deleted_at IS NULL) THEN
+    IF EXISTS (SELECT 1 FROM users.users u WHERE u.username = v_username) THEN
         RAISE EXCEPTION 'Username already in usage';
     END IF;
     IF p_email IS NOT NULL
@@ -30,6 +30,65 @@ BEGIN
 EXCEPTION
     WHEN unique_violation THEN
         RAISE EXCEPTION 'Username or email already in usage';
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION users.restore_user(
+    p_user_id UUID,
+    p_expected_deleted_at TIMESTAMPTZ
+)
+    RETURNS BOOLEAN
+AS
+$$
+DECLARE
+    v_restored BOOLEAN;
+BEGIN
+    UPDATE users.users
+    SET deleted_at = NULL,
+        updated_at = NOW()
+    WHERE id = p_user_id
+      AND deleted_at = p_expected_deleted_at
+      AND username IS NOT NULL
+    RETURNING TRUE INTO v_restored;
+
+    RETURN COALESCE(v_restored, FALSE);
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION users.delete_user(p_user_id UUID)
+    RETURNS TIMESTAMPTZ
+AS
+$$
+DECLARE
+    v_deleted_at TIMESTAMPTZ;
+BEGIN
+    UPDATE users.users
+    SET deleted_at = NOW(),
+        updated_at = NOW()
+    WHERE id = p_user_id
+      AND deleted_at IS NULL
+    RETURNING deleted_at INTO v_deleted_at;
+
+    IF v_deleted_at IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    UPDATE users.auth_session_tokens token
+    SET revoked_at = v_deleted_at
+    FROM users.auth_sessions session
+    WHERE token.session_id = session.id
+      AND session.user_id = p_user_id
+      AND token.revoked_at IS NULL;
+
+    UPDATE users.auth_sessions
+    SET revoked_at = v_deleted_at,
+        revoked_reason = 'account_deleted'
+    WHERE user_id = p_user_id
+      AND revoked_at IS NULL;
+
+    RETURN v_deleted_at;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -794,7 +853,8 @@ CREATE OR REPLACE FUNCTION users.login_oauth(
             (
                 po_user_id     UUID,
                 po_username    TEXT,
-                po_is_new_user BOOLEAN
+                po_is_new_user BOOLEAN,
+                po_deleted_at  TIMESTAMPTZ
             )
 AS
 $$
@@ -802,6 +862,7 @@ DECLARE
     v_provider_id UUID;
     v_user_id     UUID;
     v_is_new      BOOLEAN := FALSE;
+    v_deleted_at  TIMESTAMPTZ;
     v_username    TEXT;
 BEGIN
     -- 1. Проверяем, сущесет ли провайдер
@@ -817,15 +878,15 @@ BEGIN
     END IF;
 
     -- 2. ИЩЕМ СУЩЕСТВУЮЩУЮ ПРИВЯЗКУ (INNER JOIN и правильное расположение INTO)
-    SELECT u.id, u.username
-    INTO v_user_id, v_username
+    SELECT u.id, u.username, u.deleted_at
+    INTO v_user_id, v_username, v_deleted_at
     FROM users.user_auth_providers uap
              INNER JOIN users.users u ON u.id = uap.user_id
     WHERE uap.provider_id = v_provider_id
       AND uap.external_id = p_external_id;
 
     IF FOUND THEN
-        RETURN QUERY SELECT v_user_id, v_username, FALSE;
+        RETURN QUERY SELECT v_user_id, v_username, FALSE, v_deleted_at;
         RETURN;
     END IF;
 
@@ -844,7 +905,7 @@ BEGIN
 
         -- Определяем желаемый username (проверяем, не занят ли он)
         IF p_username IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM users.users WHERE username = p_username AND deleted_at IS NULL) THEN
+            AND NOT EXISTS (SELECT 1 FROM users.users WHERE username = p_username) THEN
             v_username := p_username;
         ELSE
             -- Если не передали или уже занят кем-то - генерируем случайный
@@ -857,7 +918,7 @@ BEGIN
         VALUES (v_username,
                 COALESCE(p_display_name, p_username, 'Anonymous'), -- Защита от NOT NULL
                 p_email)
-        ON CONFLICT (username) WHERE deleted_at IS NULL DO NOTHING
+        ON CONFLICT (username) DO NOTHING
         RETURNING id INTO v_user_id;
 
         -- Fallback на случай жесткого Race Condition (если имя заняли прямо перед INSERT)
@@ -877,7 +938,7 @@ BEGIN
     INSERT INTO users.user_auth_providers (user_id, provider_id, external_id, email)
     VALUES (v_user_id, v_provider_id, p_external_id, p_email);
 
-    RETURN QUERY SELECT v_user_id, v_username, v_is_new;
+    RETURN QUERY SELECT v_user_id, v_username, v_is_new, NULL::TIMESTAMPTZ;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1118,9 +1179,11 @@ CREATE OR REPLACE FUNCTION main.get_user_posts(p_username TEXT,
                 po_content           TEXT,
                 po_parent_post_author_username    TEXT,
                 po_parent_post_author_display_name    TEXT,
+                po_parent_post_author_deleted_at  TIMESTAMPTZ,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
+                po_user_deleted_at   TIMESTAMPTZ,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1137,9 +1200,11 @@ BEGIN
                         p.content,
                         NULL,
                         NULL,
+                        NULL::timestamptz,
                         u.username,
                         u.display_name,
                         ufi.avatar_url,
+                        u.deleted_at,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
@@ -1179,9 +1244,11 @@ CREATE OR REPLACE FUNCTION main.get_user_replies(p_username TEXT,
                 po_content           TEXT,
                 po_parent_post_author_username    TEXT,
                 po_parent_post_author_display_name    TEXT,
+                po_parent_post_author_deleted_at  TIMESTAMPTZ,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
+                po_user_deleted_at   TIMESTAMPTZ,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1198,9 +1265,11 @@ BEGIN
                         p.content,
                         pu.username,
                         pu.display_name,
+                        pu.deleted_at,
                         u.username,
                         u.display_name,
                         ufi.avatar_url,
+                        u.deleted_at,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
@@ -1241,9 +1310,11 @@ CREATE OR REPLACE FUNCTION main.get_user_reacted_posts(p_username TEXT,
                 po_content           TEXT,
                 po_parent_post_author_username    TEXT,
                 po_parent_post_author_display_name    TEXT,
+                po_parent_post_author_deleted_at  TIMESTAMPTZ,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
+                po_user_deleted_at   TIMESTAMPTZ,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1279,9 +1350,11 @@ BEGIN
                p.content,
                pu.username,
                pu.display_name,
+               pu.deleted_at,
                u.username,
                u.display_name,
                ufi.avatar_url,
+               u.deleted_at,
                p.comments_enabled,
                COALESCE(ps.comments_count, 0),
                COALESCE(ps.replies_count, 0),
@@ -1293,11 +1366,10 @@ BEGIN
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
                  LEFT JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
-                 LEFT JOIN users.users pu on pu.id = pup.user_id AND pu.deleted_at IS NULL
+                 LEFT JOIN users.users pu on pu.id = pup.user_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
-        WHERE u.deleted_at IS NULL
-          AND p.deleted_at IS NULL
+        WHERE p.deleted_at IS NULL
           AND (
             p_last_created_at IS NULL
                 OR p_last_id IS NULL
@@ -1376,9 +1448,11 @@ CREATE OR REPLACE FUNCTION main.get_post(p_post_id BIGINT)
                 po_content           TEXT,
                 po_parent_post_author_username    TEXT,
                 po_parent_post_author_display_name    TEXT,
+                po_parent_post_author_deleted_at  TIMESTAMPTZ,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
+                po_user_deleted_at   TIMESTAMPTZ,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1396,9 +1470,11 @@ BEGIN
                p.content,
                pu.username,
                pu.display_name,
+               pu.deleted_at,
                u.username,
                u.display_name,
                ufi.avatar_url,
+               u.deleted_at,
                p.comments_enabled,
                COALESCE(ps.comments_count, 0),
                COALESCE(ps.replies_count, 0),
@@ -1409,7 +1485,7 @@ BEGIN
                  JOIN main.user_posts up ON up.post_id = p.id
                  JOIN users.users u on u.id = up.user_id
                  LEFT JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
-                 LEFT JOIN users.users pu on pu.id = pup.user_id AND pu.deleted_at IS NULL
+                 LEFT JOIN users.users pu on pu.id = pup.user_id
                  LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                  LEFT JOIN main.post_stats ps on p.id = ps.post_id
         WHERE p.id = p_post_id
@@ -1426,9 +1502,11 @@ CREATE OR REPLACE FUNCTION main.get_post_thread(p_post_id BIGINT)
                 po_content           TEXT,
                 po_parent_post_author_username    TEXT,
                 po_parent_post_author_display_name    TEXT,
+                po_parent_post_author_deleted_at  TIMESTAMPTZ,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
+                po_user_deleted_at   TIMESTAMPTZ,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1460,9 +1538,11 @@ BEGIN
                CASE WHEN p.deleted_at IS NULL THEN p.content ELSE '' END,
                NULL,
                NULL,
+               NULL::timestamptz,
                CASE WHEN p.deleted_at IS NULL THEN u.username ELSE '' END,
                CASE WHEN p.deleted_at IS NULL THEN u.display_name ELSE '' END,
                CASE WHEN p.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
+               u.deleted_at,
                p.deleted_at IS NULL AND p.comments_enabled,
                CASE WHEN p.deleted_at IS NULL THEN COALESCE(ps.comments_count, 0) ELSE 0 END,
                CASE WHEN p.deleted_at IS NULL THEN COALESCE(ps.replies_count, 0) ELSE 0 END,
@@ -1577,9 +1657,11 @@ CREATE OR REPLACE FUNCTION main.get_feed(p_limit INT DEFAULT 20,
                 po_content           TEXT,
                 po_parent_post_author_username    TEXT,
                 po_parent_post_author_display_name    TEXT,
+                po_parent_post_author_deleted_at  TIMESTAMPTZ,
                 po_user_username     TEXT,
                 po_user_display_name TEXT,
                 po_user_avatar_url   TEXT,
+                po_user_deleted_at   TIMESTAMPTZ,
                 po_comments_enabled  BOOLEAN,
                 po_comments_count    BIGINT,
                 po_replies_count     BIGINT,
@@ -1596,9 +1678,11 @@ BEGIN
                         p.content,
                         pu.username,
                         pu.display_name,
+                        pu.deleted_at,
                         u.username,
                         u.display_name,
                         ufi.avatar_url,
+                        u.deleted_at,
                         p.comments_enabled,
                         COALESCE(ps.comments_count, 0),
                         COALESCE(ps.replies_count, 0),
@@ -1609,11 +1693,10 @@ BEGIN
                           JOIN main.user_posts up ON up.post_id = p.id
                           JOIN users.users u on u.id = up.user_id
                           LEFT JOIN main.user_posts pup ON pup.post_id = p.parent_post_id
-                          LEFT JOIN users.users pu on pu.id = pup.user_id AND pu.deleted_at IS NULL
+                          LEFT JOIN users.users pu on pu.id = pup.user_id
                           LEFT JOIN users.profile_info ufi ON u.id = ufi.user_id
                           LEFT JOIN main.post_stats ps on p.id = ps.post_id
-                 WHERE u.deleted_at IS NULL
-                   AND p.deleted_at IS NULL
+                 WHERE p.deleted_at IS NULL
                    AND (
                      p_last_created_at IS NULL
                          OR p_last_id IS NULL
@@ -1904,6 +1987,7 @@ CREATE OR REPLACE FUNCTION main.get_reply_comments(
                 po_author_username     TEXT,
                 po_author_display_name TEXT,
                 po_author_avatar_url   TEXT,
+                po_author_deleted_at   TIMESTAMPTZ,
                 po_content_type        INT,
                 po_content             TEXT,
                 po_visible_replies_count INT,
@@ -1920,6 +2004,7 @@ BEGIN
                CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.username, '') ELSE '' END,
                CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.display_name, '') ELSE '' END,
                CASE WHEN c.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
+               u.deleted_at,
                CASE WHEN c.deleted_at IS NULL THEN c.content_type ELSE 0 END,
                CASE WHEN c.deleted_at IS NULL THEN c.content ELSE '' END,
                c.visible_replies_count,
@@ -1955,6 +2040,7 @@ CREATE OR REPLACE FUNCTION main.get_post_comments(
                 po_author_username     TEXT,
                 po_author_display_name TEXT,
                 po_author_avatar_url   TEXT,
+                po_author_deleted_at   TIMESTAMPTZ,
                 po_content_type        INT,
                 po_content             TEXT,
                 po_visible_replies_count INT,
@@ -1971,6 +2057,7 @@ BEGIN
                CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.username, '') ELSE '' END,
                CASE WHEN c.deleted_at IS NULL THEN COALESCE(u.display_name, '') ELSE '' END,
                CASE WHEN c.deleted_at IS NULL THEN ufi.avatar_url ELSE NULL END,
+               u.deleted_at,
                CASE WHEN c.deleted_at IS NULL THEN c.content_type ELSE 0 END,
                CASE WHEN c.deleted_at IS NULL THEN c.content ELSE '' END,
                c.visible_replies_count,

@@ -29,6 +29,7 @@ export function ReplyForm({
                               compact = false
                           }: ReplyFormProps) {
     const [text, setText] = useState("");
+    const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Добавляем новый useEffect для автофокуса
@@ -91,7 +92,7 @@ export function ReplyForm({
                         <div className="flex items-center gap-1 -ml-2">
 
                             {/* 5. Уменьшаем кнопки иконок */}
-                            <Popover>
+                            <Popover open={isEmojiPickerOpen} onOpenChange={setIsEmojiPickerOpen}>
                                 <PopoverTrigger asChild>
                                     <Button variant="ghost" size="icon"
                                             className={cn("rounded-full text-primary", compact ? "h-8 w-8" : "h-9 w-9")}>
@@ -100,7 +101,7 @@ export function ReplyForm({
                                 </PopoverTrigger>
                                 {/* w-auto и p-0 убирают рамки Popover'а, чтобы пикер смотрелся органично */}
                                 <PopoverContent align="start" className="w-auto p-0 border-none shadow-none z-50">
-                                    <EmojiPicker onEmojiSelect={insertEmoji} />
+                                    {isEmojiPickerOpen && <EmojiPicker onEmojiSelect={insertEmoji} />}
                                 </PopoverContent>
                             </Popover>
 
