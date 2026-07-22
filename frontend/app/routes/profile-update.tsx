@@ -9,6 +9,7 @@ import {Button} from "~/components/ui/button";
 import {Card, CardContent, CardFooter, CardHeader} from "~/components/ui/card";
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "~/components/ui/tooltip";
 import {UserAvatar} from "~/components/user-avatar";
+import {AccountDeletionSection} from "~/components/account-deletion-section";
 import {useAuth} from "~/hooks/use-auth";
 import {type UpdateProfileInfoBodyDto, updateProfileInfo} from "~/lib/api";
 
@@ -280,6 +281,8 @@ export default function UpdateProfilePage() {
                             </CardFooter>
                         </form>
                     </Card>
+
+                    <AccountDeletionSection username={user.username} />
                 </div>
             </main>
         </TooltipProvider>

@@ -87,6 +87,7 @@ export type ApiSchemas = components["schemas"];
 
 export type AuthProvidersDto = ApiSchemas["AuthProvidersDto"];
 export type AuthTokenDto = ApiSchemas["AuthTokenDto"];
+export type DeletedAccountDto = ApiSchemas["DeletedAccountDto"];
 export type CommentEntity = ApiSchemas["CommentEntity"];
 export type CommentMetadataDto = ApiSchemas["CommentMetadataDto"];
 export type CreateCommentBodyDto = ApiSchemas["CreateCommentBodyDto"];
@@ -99,6 +100,7 @@ export type GetUserByUsernameDto = ApiSchemas["GetUserByUsernameDto"];
 export type GetUserSubscribersDto = ApiSchemas["GetUserSubscribersDto"];
 export type GetUserSubscribesDto = ApiSchemas["GetUserSubscribesDto"];
 export type OAuthLoginDto = ApiSchemas["OAuthLoginDto"];
+export type RestoreAccountDto = ApiSchemas["RestoreAccountDto"];
 export type OperationResultDto = ApiSchemas["OperationResultDto"];
 export type PagedCommentsDto = ApiSchemas["PagedCommentsDto"];
 export type PagedPostsDto = ApiSchemas["PagedPostsDto"];
@@ -158,6 +160,43 @@ export async function updateProfileInfo(body: UpdateProfileInfoBodyDto): Promise
 
     if (!data) {
         throw new Error("Failed to update profile");
+    }
+
+    return data;
+}
+
+export async function deleteProfile(): Promise<void> {
+    const {error} = await client.DELETE("/v1/profile", {
+        params: {
+            path: {
+                version: "1",
+            },
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+}
+
+export async function restoreDeletedAccount(recoveryToken: string): Promise<AuthTokenDto> {
+    const {data, error} = await client.POST("/v1/auth/restore", {
+        params: {
+            path: {
+                version: "1",
+            },
+        },
+        body: {
+            recoveryToken,
+        },
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error("Failed to restore account");
     }
 
     return data;

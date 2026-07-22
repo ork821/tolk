@@ -6,7 +6,8 @@ import {useNavigate} from "react-router";
 import {useAuth} from "~/hooks/use-auth";
 import {Button} from "~/components/ui/button";
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "~/components/ui/card";
-import {Loader2} from "lucide-react";
+import {AlertTriangle, Clock3, Loader2, RotateCcw} from "lucide-react";
+import type {DeletedAccountDto} from "~/lib/api";
 
 
 const YandexIcon = ({className}: {className?: string}) => (
@@ -41,8 +42,112 @@ function isVkAuthResponse(value: unknown): value is VKID.AuthResponse {
     );
 }
 
+function formatRestoreUntil(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat("ru-RU", {
+        dateStyle: "long",
+        timeStyle: "short",
+    }).format(date);
+}
+
+function AccountRecoveryCard({
+    recovery,
+    isRestoring,
+    error,
+    onRestore,
+    onCancel,
+}: {
+    recovery: DeletedAccountDto;
+    isRestoring: boolean;
+    error: string | null;
+    onRestore: () => void;
+    onCancel: () => void;
+}) {
+    const canRestore = recovery.canRestore && Boolean(recovery.recoveryToken);
+
+    return (
+        <Card className="w-full max-w-md overflow-hidden rounded-lg border border-border shadow-lg">
+            <CardHeader className="gap-4 border-b border-border bg-muted/30 px-6 py-6">
+                <div className="flex size-11 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                    <AlertTriangle className="size-5" />
+                </div>
+                <div className="space-y-1.5">
+                    <CardTitle className="text-xl font-semibold">Аккаунт удалён</CardTitle>
+                    <CardDescription className="text-sm leading-6">
+                        Авторизация прошла успешно, но этот аккаунт находится в периоде ожидания удаления.
+                    </CardDescription>
+                </div>
+            </CardHeader>
+
+            <CardContent className="space-y-5 px-6 py-6">
+                <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+                    <Clock3 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div className="text-sm leading-5">
+                        <p className="font-medium">
+                            {canRestore ? "Восстановление доступно до" : "Срок восстановления истёк"}
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                            {formatRestoreUntil(recovery.restoreUntil)}
+                        </p>
+                    </div>
+                </div>
+
+                {canRestore ? (
+                    <p className="text-sm leading-6 text-muted-foreground">
+                        После восстановления профиль и публикации снова станут доступны, а для текущего устройства будет создан новый сеанс.
+                    </p>
+                ) : (
+                    <p className="text-sm leading-6 text-muted-foreground">
+                        Восстановить аккаунт через интерфейс больше нельзя.
+                    </p>
+                )}
+
+                {error && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        {error}
+                    </div>
+                )}
+
+                <div className="flex flex-col gap-2">
+                    {canRestore && (
+                        <Button
+                            type="button"
+                            className="h-10 gap-2"
+                            disabled={isRestoring}
+                            onClick={onRestore}
+                        >
+                            {isRestoring ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+                            {isRestoring ? "Восстановление..." : "Восстановить аккаунт"}
+                        </Button>
+                    )}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10"
+                        disabled={isRestoring}
+                        onClick={onCancel}
+                    >
+                        Вернуться к авторизации
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AuthPage() {
-    const {isAuthenticated, isLoading: isAuthLoading, isSocialLoggingIn, socialLogin} = useAuth();
+    const {
+        isAuthenticated,
+        isLoading: isAuthLoading,
+        isSocialLoggingIn,
+        accountRecovery,
+        isRestoringAccount,
+        socialLogin,
+        restoreAccount,
+        clearAccountRecovery,
+    } = useAuth();
     const navigate = useNavigate();
     const [authError, setAuthError] = useState<string | null>(null);
     const [isVkAuthorizing, setIsVkAuthorizing] = useState(false);
@@ -93,6 +198,28 @@ export default function AuthPage() {
         }
     };
 
+    const handleYandexLogin = async () => {
+        setAuthError(null);
+
+        try {
+            await socialLogin("yandex");
+        } catch (error) {
+            console.error("Failed to authorize with Yandex ID", error);
+            setAuthError("Не удалось войти через Яндекс ID. Попробуйте ещё раз.");
+        }
+    };
+
+    const handleRestoreAccount = async () => {
+        setAuthError(null);
+
+        try {
+            await restoreAccount();
+        } catch (error) {
+            console.error("Failed to restore account", error);
+            setAuthError("Не удалось восстановить аккаунт. Повторите авторизацию и попробуйте ещё раз.");
+        }
+    };
+
     if (isAuthLoading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -102,6 +229,25 @@ export default function AuthPage() {
     }
 
     if (isAuthenticated) return null;
+
+    if (accountRecovery) {
+        return (
+            <div className="flex min-h-[70vh] items-center justify-center px-4">
+                <title>Восстановление аккаунта | ТОЛК</title>
+                <meta name="description" content="Восстановление удалённого аккаунта ТОЛК." />
+                <AccountRecoveryCard
+                    recovery={accountRecovery}
+                    isRestoring={isRestoringAccount}
+                    error={authError}
+                    onRestore={() => void handleRestoreAccount()}
+                    onCancel={() => {
+                        setAuthError(null);
+                        clearAccountRecovery();
+                    }}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="flex items-center justify-center min-h-[70vh] px-4">
@@ -134,7 +280,7 @@ export default function AuthPage() {
                     <Button
                         variant="outline"
                         disabled={!!isSocialLoggingIn || isVkAuthorizing}
-                        onClick={() => socialLogin("yandex")}
+                        onClick={() => void handleYandexLogin()}
                         className="h-12 rounded-2xl font-bold border-2 hover:bg-muted/50 transition-all active:scale-95 flex items-center gap-3 relative overflow-hidden"
                     >
                         {isSocialLoggingIn === "yandex" ? <Loader2 className="w-6 h-6 animate-spin"/> : <YandexIcon className="w-8 h-8"/>}
