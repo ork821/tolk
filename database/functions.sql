@@ -993,11 +993,13 @@ BEGIN
         SELECT path
         INTO v_parent_path
         FROM main.posts
-        WHERE main.posts.id = p_parent_post_id;
+        WHERE main.posts.id = p_parent_post_id
+          AND main.posts.deleted_at IS NULL;
 
         -- Защита от "битых" ссылок
         IF NOT FOUND THEN
-            RAISE EXCEPTION 'Parent post % does not exist', p_parent_post_id;
+            RAISE EXCEPTION 'Parent post % does not exist or is deleted', p_parent_post_id
+                USING ERRCODE = '22023';
         END IF;
 
         IF nlevel(v_parent_path) >= 50 THEN
