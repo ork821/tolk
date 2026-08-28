@@ -18,12 +18,18 @@ BEGIN
         RAISE EXCEPTION 'migration function main.create_post has an unsafe search_path: %', v_config;
     END IF;
 
-    IF NOT has_function_privilege(
-        'backend',
-        'main.create_post(bigint,uuid,bigint,integer,text,boolean,text)',
-        'EXECUTE'
-    ) THEN
-        RAISE EXCEPTION 'backend cannot execute migration function main.create_post';
-    END IF;
 END
 $$;
+
+SELECT has_function_privilege(
+    :'app_user',
+    'main.create_post(bigint,uuid,bigint,integer,text,boolean,text)',
+    'EXECUTE'
+) AS app_user_can_execute_create_post
+\gset
+
+\if :app_user_can_execute_create_post
+\else
+    \echo 'Application role cannot execute migration function main.create_post'
+    SELECT 1 / 0;
+\endif

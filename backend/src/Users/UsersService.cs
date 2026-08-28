@@ -7,18 +7,19 @@ namespace TolkApi.Users;
 
 public class UsersService(DatabaseContext databaseContext, ILogger<UsersService> logger)
 {
-    public async Task<DateTime?> DeleteUser(Guid userId)
+    public async Task<DateTime?> DeleteUser(Guid userId, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand("SELECT users.delete_user(@userId)");
 
         command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
 
         return result is DateTime deletedAt ? deletedAt : null;
     }
 
-    public async Task<bool> RestoreUser(Guid userId, DateTime expectedDeletedAt)
+    public async Task<bool> RestoreUser(Guid userId, DateTime expectedDeletedAt,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand("SELECT users.restore_user(@userId, @expectedDeletedAt)");
@@ -26,10 +27,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
         command.Parameters.Add("expectedDeletedAt", NpgsqlDbType.TimestampTz).Value = expectedDeletedAt;
 
-        return await command.ExecuteScalarAsync() is true;
+        return await command.ExecuteScalarAsync(cancellationToken) is true;
     }
 
-    public async Task<PostDto[]> GetUserPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId)
+    public async Task<PostDto[]> GetUserPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.get_user_posts(@username, @limit, @lastCreatedAt, @lastId)");
@@ -39,11 +41,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
         command.Parameters.AddWithValue("@lastId", lastId != null ? lastId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var posts = new List<PostDto>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             posts.Add(PostDto.FromReader(reader));
         }
@@ -51,7 +53,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         return posts.ToArray();
     }
 
-    public async Task<PostDto[]> GetUserReplies(string username, int limit, DateTime? lastCreatedAt, long? lastId)
+    public async Task<PostDto[]> GetUserReplies(string username, int limit, DateTime? lastCreatedAt, long? lastId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.get_user_replies(@username, @limit, @lastCreatedAt, @lastId)");
@@ -61,11 +64,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
         command.Parameters.AddWithValue("@lastId", lastId != null ? lastId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var replies = new List<PostDto>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             replies.Add(PostDto.FromReader(reader));
         }
@@ -73,7 +76,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         return replies.ToArray();
     }
     
-    public async Task<PostDto[]> GetUserReactedPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId)
+    public async Task<PostDto[]> GetUserReactedPosts(string username, int limit, DateTime? lastCreatedAt, long? lastId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.get_user_reacted_posts(@username, @limit, @lastCreatedAt, @lastId)");
@@ -83,11 +87,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
         command.Parameters.AddWithValue("@lastId", lastId != null ? lastId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var replies = new List<PostDto>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             replies.Add(PostDto.FromReader(reader));
         }
@@ -95,7 +99,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         return replies.ToArray();
     }
 
-    public async Task<GetUserByUsernameDto?> GetUserByUsername(string username, Guid? userId)
+    public async Task<GetUserByUsernameDto?> GetUserByUsername(string username, Guid? userId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_user_by_username(@username, @userId)");
@@ -103,14 +108,15 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@userId", userId != null ? userId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync()) return GetUserByUsernameDto.FromReader(reader);
+        if (await reader.ReadAsync(cancellationToken)) return GetUserByUsernameDto.FromReader(reader);
 
         return null;
     }
 
-    public async Task<Dictionary<string, UserMetadataDto>> GetUsersMetadata(string[] usernames, Guid? userId)
+    public async Task<Dictionary<string, UserMetadataDto>> GetUsersMetadata(string[] usernames, Guid? userId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_users_metadata(@usernames, @userId)");
@@ -118,16 +124,18 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@usernames", usernames);
         command.Parameters.AddWithValue("@userId", userId != null ? userId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var usersMetadata = new Dictionary<string, UserMetadataDto>(StringComparer.OrdinalIgnoreCase);
 
-        while (await reader.ReadAsync()) usersMetadata[reader.GetString(0)] = UserMetadataDto.FromReader(reader);
+        while (await reader.ReadAsync(cancellationToken))
+            usersMetadata[reader.GetString(0)] = UserMetadataDto.FromReader(reader);
 
         return usersMetadata;
     }
 
-    public async Task<SearchUserDto[]> SearchUsers(string query, int limit, Guid? userId)
+    public async Task<SearchUserDto[]> SearchUsers(string query, int limit, Guid? userId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.search_users(@query, @limit, @userId)");
@@ -136,10 +144,10 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@limit", limit);
         command.Parameters.AddWithValue("@userId", userId != null ? userId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var users = new List<SearchUserDto>();
-        while (await reader.ReadAsync()) users.Add(SearchUserDto.FromReader(reader));
+        while (await reader.ReadAsync(cancellationToken)) users.Add(SearchUserDto.FromReader(reader));
 
         return users.ToArray();
     }
@@ -148,7 +156,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         Guid userId,
         string? displayName,
         string? description,
-        string? avatarUrl)
+        string? avatarUrl,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand("""
@@ -166,23 +175,23 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.Add("description", NpgsqlDbType.Text).Value = description != null ? description : DBNull.Value;
         command.Parameters.Add("avatarUrl", NpgsqlDbType.Text).Value = avatarUrl != null ? avatarUrl : DBNull.Value;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync()) return UpdateProfileInfoDto.FromReader(reader);
+        if (await reader.ReadAsync(cancellationToken)) return UpdateProfileInfoDto.FromReader(reader);
 
         return null;
     }
 
-    public async Task<GetUserByUsernameDto?> GetUserById(Guid userId)
+    public async Task<GetUserByUsernameDto?> GetUserById(Guid userId, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_user_by_id(@userId)");
 
         command.Parameters.AddWithValue("@userId", userId);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync()) return GetUserByUsernameDto.FromReader(reader);
+        if (await reader.ReadAsync(cancellationToken)) return GetUserByUsernameDto.FromReader(reader);
 
         return null;
     }
@@ -192,7 +201,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         int limit,
         DateTime? lastCreatedAt,
         string? lastUsername,
-        Guid? myUserId)
+        Guid? myUserId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_user_subscribers(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
@@ -203,11 +213,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@lastUsername", lastUsername != null ? lastUsername : DBNull.Value);
         command.Parameters.AddWithValue("@myUserId", myUserId != null ? myUserId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var subscribers = new List<GetUserSubscribersDto>();
 
-        while (await reader.ReadAsync()) subscribers.Add(GetUserSubscribersDto.FromReader(reader));
+        while (await reader.ReadAsync(cancellationToken)) subscribers.Add(GetUserSubscribersDto.FromReader(reader));
 
         return subscribers.ToArray();
     }
@@ -218,7 +228,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         int limit,
         DateTime? lastCreatedAt,
         string? lastUsername,
-        Guid? myUserId)
+        Guid? myUserId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_user_subscribes(@username, @limit, @lastCreatedAt, @lastUsername, @myUserId)");
@@ -229,11 +240,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@lastUsername", lastUsername != null ? lastUsername : DBNull.Value);
         command.Parameters.AddWithValue("@myUserId", myUserId != null ? myUserId : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var subscribes = new List<GetUserSubscribesDto>();
 
-        while (await reader.ReadAsync()) subscribes.Add(GetUserSubscribesDto.FromReader(reader));
+        while (await reader.ReadAsync(cancellationToken)) subscribes.Add(GetUserSubscribesDto.FromReader(reader));
 
         return subscribes.ToArray();
     }
@@ -242,7 +253,8 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         string username,
         int limit,
         DateTime? lastCreatedAt,
-        string? lastAlias)
+        string? lastAlias,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.get_user_group_subscribes(@username, @limit, @lastCreatedAt, @lastAlias)");
@@ -252,17 +264,18 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt != null ? lastCreatedAt : DBNull.Value);
         command.Parameters.AddWithValue("@lastAlias", lastAlias != null ? lastAlias : DBNull.Value);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var subscribes = new List<GetUserGroupSubscribesDto>();
 
-        while (await reader.ReadAsync()) subscribes.Add(new GetUserGroupSubscribesDto(reader.GetString(0), reader.GetDateTime(1)));
+        while (await reader.ReadAsync(cancellationToken))
+            subscribes.Add(new GetUserGroupSubscribesDto(reader.GetString(0), reader.GetDateTime(1)));
 
         return subscribes.ToArray();
     }
 
 
-    public async Task<bool> IsUserSubscribed(Guid userId, string username)
+    public async Task<bool> IsUserSubscribed(Guid userId, string username, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.is_user_subscribed(@userId, @username)");
@@ -270,12 +283,12 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         command.Parameters.AddWithValue("@username", username);
         command.Parameters.AddWithValue("@userId", userId);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        return await reader.ReadAsync() && reader.GetBoolean(0);
+        return await reader.ReadAsync(cancellationToken) && reader.GetBoolean(0);
     }
 
-    public async Task<bool> SubscribeToUser(Guid userId, string username)
+    public async Task<bool> SubscribeToUser(Guid userId, string username, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.add_user_subscribe(@userId, @username)");
@@ -285,11 +298,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
 
         try
         {
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken);
 
             return true;
         }
-        catch (Exception e)
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogError(
                 e,
@@ -300,7 +313,7 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
         }
     }
 
-    public async Task<bool> UnsubscribeFromUser(Guid userId, string username)
+    public async Task<bool> UnsubscribeFromUser(Guid userId, string username, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM users.remove_user_subscribe(@userId, @username)");
@@ -310,11 +323,11 @@ public class UsersService(DatabaseContext databaseContext, ILogger<UsersService>
 
         try
         {
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken);
 
             return true;
         }
-        catch (Exception e)
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogError(
                 e,

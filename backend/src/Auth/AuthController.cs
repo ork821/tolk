@@ -68,7 +68,8 @@ public class AuthController(
             externalUserInfo.Username,
             externalUserInfo.Email,
             externalUserInfo.DisplayName,
-            externalUserInfo.AvatarUrl
+            externalUserInfo.AvatarUrl,
+            cancellationToken
         );
 
         if (user == null) return Unauthorized();
@@ -99,10 +100,10 @@ public class AuthController(
         var refreshToken = tokenService.GenerateRefreshToken();
 
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var sessionId = await _authService.CreateAuthSession(user.UserId, userAgent, ipAddress);
+        var sessionId = await _authService.CreateAuthSession(user.UserId, userAgent, ipAddress, cancellationToken);
         if (!sessionId.HasValue) return StatusCode(StatusCodes.Status503ServiceUnavailable);
 
-        var refreshSaved = await _authService.SaveRefreshToken(sessionId.Value, refreshToken, 30);
+        var refreshSaved = await _authService.SaveRefreshToken(sessionId.Value, refreshToken, 30, cancellationToken);
         if (!refreshSaved) return StatusCode(StatusCodes.Status503ServiceUnavailable);
 
         HttpContext.Response.Cookies.Append(RefreshTokenCookieName, refreshToken, new CookieOptions
@@ -139,7 +140,7 @@ public class AuthController(
             });
         }
 
-        var restored = await usersService.RestoreUser(recovery.UserId, recovery.DeletedAt);
+        var restored = await usersService.RestoreUser(recovery.UserId, recovery.DeletedAt, cancellationToken);
         if (!restored)
         {
             return Conflict(new ProblemDetails
@@ -154,11 +155,12 @@ public class AuthController(
         var sessionId = await _authService.CreateAuthSession(
             recovery.UserId,
             userAgent,
-            HttpContext.Connection.RemoteIpAddress?.ToString());
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            cancellationToken);
         if (!sessionId.HasValue) return StatusCode(StatusCodes.Status503ServiceUnavailable);
 
         var refreshToken = tokenService.GenerateRefreshToken();
-        if (!await _authService.SaveRefreshToken(sessionId.Value, refreshToken, 30))
+        if (!await _authService.SaveRefreshToken(sessionId.Value, refreshToken, 30, cancellationToken))
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
 
         var expires = DateTime.UtcNow.AddMinutes(30);
@@ -180,7 +182,7 @@ public class AuthController(
     [ProducesResponseType(typeof(AuthTokenDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult> RefreshTokens()
+    public async Task<ActionResult> RefreshTokens(CancellationToken cancellationToken)
     {
         HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
         if (refresh == null) return Unauthorized();
@@ -195,12 +197,12 @@ public class AuthController(
             30,
             userAgent,
             HttpContext.Connection.RemoteIpAddress?.ToString(),
-            HttpContext.RequestAborted);
+            cancellationToken);
 
         if (rotation?.ShouldRevokeAll == true && rotation.UserId.HasValue)
         {
             logger.LogWarning("Refresh token reuse detected for user {UserId}", rotation.UserId);
-            await _authService.RevokeAllRefreshTokens(rotation.UserId.Value, null);
+            await _authService.RevokeAllRefreshTokens(rotation.UserId.Value, null, cancellationToken);
             return Unauthorized();
         }
 
@@ -228,13 +230,14 @@ public class AuthController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Logout(
-        [FromUserId] Guid? userId
+        [FromUserId] Guid? userId,
+        CancellationToken cancellationToken
     )
     {
         HttpContext.Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refresh);
         if (userId == null || refresh == null) return Unauthorized();
 
-        await _authService.RevokeRefreshToken(refresh);
+        await _authService.RevokeRefreshToken(refresh, cancellationToken);
         HttpContext.Response.Cookies.Delete(RefreshTokenCookieName);
         return NoContent();
     }

@@ -11,9 +11,9 @@ public class ReactionsController(ReactionService reactionService) : ControllerBa
 {
     [HttpGet]
     [ProducesResponseType(typeof(ReactionTypeDto[]), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetReactionTypes()
+    public async Task<IActionResult> GetReactionTypes(CancellationToken cancellationToken)
     {
-        var reactionTypes = await reactionService.GetReactionTypes();
+        var reactionTypes = await reactionService.GetReactionTypes(cancellationToken);
         return Ok(reactionTypes);
     }
 }

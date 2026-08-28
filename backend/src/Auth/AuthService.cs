@@ -20,7 +20,8 @@ public class AuthService(
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
-    public async Task<Guid?> CreateAuthSession(Guid userId, string userAgent, string? ipAddress)
+    public async Task<Guid?> CreateAuthSession(Guid userId, string userAgent, string? ipAddress,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand("SELECT users.create_auth_session(@userId, @userAgent, @ipAddress)");
@@ -30,11 +31,12 @@ public class AuthService(
         command.Parameters.Add("@ipAddress", NpgsqlDbType.Inet).Value =
             ParseIpAddress(ipAddress) ?? (object)DBNull.Value;
 
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         return result is Guid sessionId ? sessionId : null;
     }
 
-    public async Task<bool> SaveRefreshToken(Guid sessionId, string refreshToken, int days)
+    public async Task<bool> SaveRefreshToken(Guid sessionId, string refreshToken, int days,
+        CancellationToken cancellationToken)
     {
         var refreshTokenHash = HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
@@ -46,17 +48,17 @@ public class AuthService(
 
         try
         {
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken);
             return true;
         }
-        catch (Exception e)
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogError(e, "Failed to save refresh token for session {SessionId}", sessionId);
             return false;
         }
     }
 
-    public async Task<ValidateTokenDto?> ValidateRefreshToken(string refreshToken)
+    public async Task<ValidateTokenDto?> ValidateRefreshToken(string refreshToken, CancellationToken cancellationToken)
     {
         var refreshTokenHash = HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
@@ -64,9 +66,9 @@ public class AuthService(
 
         command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync())
+        if (await reader.ReadAsync(cancellationToken))
             return new ValidateTokenDto(
                 reader.GetGuid(0),
                 reader.GetBoolean(1),
@@ -114,7 +116,7 @@ public class AuthService(
             : null;
     }
 
-    public async Task<bool> RevokeRefreshToken(string refreshToken)
+    public async Task<bool> RevokeRefreshToken(string refreshToken, CancellationToken cancellationToken)
     {
         var refreshTokenHash = HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
@@ -122,14 +124,15 @@ public class AuthService(
 
         command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash);
 
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result == null) return false;
 
         return (bool)result;
     }
 
 
-    public async Task<bool> RevokeAllRefreshTokens(Guid userId, string? refreshToken)
+    public async Task<bool> RevokeAllRefreshTokens(Guid userId, string? refreshToken,
+        CancellationToken cancellationToken)
     {
         var refreshTokenHash = refreshToken == null ? null : HashRefreshToken(refreshToken);
         await using var command = databaseContext.GetCon()
@@ -138,14 +141,14 @@ public class AuthService(
         command.Parameters.AddWithValue("@userId", userId);
         command.Parameters.AddWithValue("@refreshTokenHash", refreshTokenHash == null ? DBNull.Value : refreshTokenHash);
 
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
         return true;
     }
 
 
     public async Task<ExternalOAuthLoginDto?> LoginOAuth(string provider,
         string externalId, string? username,
-        string? email, string? displayName, string? avatarUrl)
+        string? email, string? displayName, string? avatarUrl, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand("SELECT * FROM users.login_oauth(@provider, @externalId, @username, @email, @displayName, @avatarUrl)");
@@ -157,9 +160,9 @@ public class AuthService(
         command.Parameters.AddWithValue("@displayName", displayName == null ? DBNull.Value : displayName);
         command.Parameters.AddWithValue("@avatarUrl", avatarUrl == null ? DBNull.Value : avatarUrl);
         
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync())
+        if (await reader.ReadAsync(cancellationToken))
         {
             return new ExternalOAuthLoginDto(
                 reader.GetGuid(0),

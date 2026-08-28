@@ -21,12 +21,13 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SearchUsers(
         [FromQuery(Name = "q")] string query,
-        [FromUserId] Guid? userId)
+        [FromUserId] Guid? userId,
+        CancellationToken cancellationToken)
     {
         var normalizedQuery = query.Trim();
         if (normalizedQuery.Length < 2) return BadRequest("Search query must be at least 2 characters long");
 
-        var users = await usersService.SearchUsers(normalizedQuery, SearchLimit, userId);
+        var users = await usersService.SearchUsers(normalizedQuery, SearchLimit, userId, cancellationToken);
 
         return Ok(users);
     }
@@ -36,7 +37,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUserPosts(
         [FromRoute] string username,
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        CancellationToken cancellationToken)
     {
         PostDto[] posts;
         if (nextPageToken != null)
@@ -44,11 +46,12 @@ public class UsersController(UsersService usersService) : ControllerBase
             var decodeResult = CursorEncoder.Decode(nextPageToken);
             if (decodeResult.lastCreatedAt == null || decodeResult.lastId == null)
                 return BadRequest("Invalid next page token");
-            posts = await usersService.GetUserPosts(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastId);
+            posts = await usersService.GetUserPosts(username, PageSize + 1, decodeResult.lastCreatedAt,
+                decodeResult.lastId, cancellationToken);
         }
         else
         {
-            posts = await usersService.GetUserPosts(username, PageSize + 1, null, null);
+            posts = await usersService.GetUserPosts(username, PageSize + 1, null, null, cancellationToken);
         }
 
         var postsPage = posts.Take(PageSize).ToArray();
@@ -64,7 +67,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUserReplies(
         [FromRoute] string username,
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        CancellationToken cancellationToken)
     {
         PostDto[] replies;
         if (nextPageToken != null)
@@ -73,11 +77,12 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastId == null)
                 return BadRequest("Invalid next page token");
 
-            replies = await usersService.GetUserReplies(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastId);
+            replies = await usersService.GetUserReplies(username, PageSize + 1, decodeResult.lastCreatedAt,
+                decodeResult.lastId, cancellationToken);
         }
         else
         {
-            replies = await usersService.GetUserReplies(username, PageSize + 1, null, null);
+            replies = await usersService.GetUserReplies(username, PageSize + 1, null, null, cancellationToken);
         }
 
         var repliesPage = replies.Take(PageSize).ToArray();
@@ -93,7 +98,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUserReactedPosts(
         [FromRoute] string username,
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        CancellationToken cancellationToken)
     {
         PostDto[] replies;
         if (nextPageToken != null)
@@ -102,11 +108,12 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastId == null)
                 return BadRequest("Invalid next page token");
 
-            replies = await usersService.GetUserReactedPosts(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastId);
+            replies = await usersService.GetUserReactedPosts(username, PageSize + 1, decodeResult.lastCreatedAt,
+                decodeResult.lastId, cancellationToken);
         }
         else
         {
-            replies = await usersService.GetUserReactedPosts(username, PageSize + 1, null, null);
+            replies = await usersService.GetUserReactedPosts(username, PageSize + 1, null, null, cancellationToken);
         }
 
         var repliesPage = replies.Take(PageSize).ToArray();
@@ -120,9 +127,10 @@ public class UsersController(UsersService usersService) : ControllerBase
     [HttpGet("{username}")]
     [ProducesResponseType(typeof(GetUserByUsernameDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetUserProfileInfo(string username, [FromUserId] Guid? userId)
+    public async Task<IActionResult> GetUserProfileInfo(string username, [FromUserId] Guid? userId,
+        CancellationToken cancellationToken)
     {
-        var userInfo = await usersService.GetUserByUsername(username, userId);
+        var userInfo = await usersService.GetUserByUsername(username, userId, cancellationToken);
         if (userInfo == null) return NotFound();
         return Ok(userInfo);
     }
@@ -131,17 +139,19 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(typeof(Dictionary<string, UserMetadataDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUsersMetadata(
         [FromBody] MetadataRequestDto body,
-        [FromUserId] Guid? userId)
+        [FromUserId] Guid? userId,
+        CancellationToken cancellationToken)
     {
         var validator = new MetadataRequestDtoValidator();
-        var validationResult = await validator.ValidateAsync(body);
+        var validationResult = await validator.ValidateAsync(body, cancellationToken);
         if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         if (body.Ids.Length == 0) return Ok(new Dictionary<string, UserMetadataDto>());
 
         var metadata = await usersService.GetUsersMetadata(
             body.Ids.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-            userId);
+            userId,
+            cancellationToken);
 
         return Ok(metadata);
     }
@@ -159,13 +169,14 @@ public class UsersController(UsersService usersService) : ControllerBase
     [HttpPost("{username}/subscribe")]
     [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> SubscribeToUser([FromRoute] string username,
-        [FromUserId] Guid? userId)
+        [FromUserId] Guid? userId,
+        CancellationToken cancellationToken)
     {
         if (userId == null)
         {
             return Unauthorized();
         }
-        var result = await usersService.SubscribeToUser((Guid)userId, username);
+        var result = await usersService.SubscribeToUser((Guid)userId, username, cancellationToken);
         if (result)
         {
             return Created();
@@ -178,13 +189,14 @@ public class UsersController(UsersService usersService) : ControllerBase
     [HttpDelete("{username}/subscribe")]
     [ProducesResponseType(typeof(OperationResultDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> UnsubscribeFromUser([FromRoute] string username,
-        [FromUserId] Guid? userId)
+        [FromUserId] Guid? userId,
+        CancellationToken cancellationToken)
     {
         if (userId == null)
         {
             return Unauthorized();
         }
-        var result = await usersService.UnsubscribeFromUser((Guid)userId, username);
+        var result = await usersService.UnsubscribeFromUser((Guid)userId, username, cancellationToken);
         if (result)
         {
             return Created();
@@ -199,7 +211,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     public async Task<IActionResult> GetUserSubscribes(
         [FromRoute] string username,
         [FromQuery(Name = "next_page_token")] string? nextPageToken,
-        [FromUserId] Guid? myUserId)
+        [FromUserId] Guid? myUserId,
+        CancellationToken cancellationToken)
     {
         GetUserSubscribesDto[] subscribes;
         if (nextPageToken != null)
@@ -208,11 +221,13 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            subscribes = await usersService.GetUserSubscribes(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
+            subscribes = await usersService.GetUserSubscribes(username, PageSize + 1, decodeResult.lastCreatedAt,
+                decodeResult.lastValue, myUserId, cancellationToken);
         }
         else
         {
-            subscribes = await usersService.GetUserSubscribes(username, PageSize + 1, null, null, myUserId);
+            subscribes = await usersService.GetUserSubscribes(username, PageSize + 1, null, null, myUserId,
+                cancellationToken);
         }
 
         var subscribesPage = subscribes.Take(PageSize).ToArray();
@@ -228,7 +243,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetGroupSubscribes(
         [FromRoute] string username,
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        CancellationToken cancellationToken)
     {
         GetUserGroupSubscribesDto[] groupSubscribes;
         if (nextPageToken != null)
@@ -237,11 +253,13 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            groupSubscribes = await usersService.GetUserGroupSubscribes(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue);
+            groupSubscribes = await usersService.GetUserGroupSubscribes(username, PageSize + 1,
+                decodeResult.lastCreatedAt, decodeResult.lastValue, cancellationToken);
         }
         else
         {
-            groupSubscribes = await usersService.GetUserGroupSubscribes(username, PageSize + 1, null, null);
+            groupSubscribes = await usersService.GetUserGroupSubscribes(username, PageSize + 1, null, null,
+                cancellationToken);
         }
 
         var groupSubscribesPage = groupSubscribes.Take(PageSize).ToArray();
@@ -258,7 +276,8 @@ public class UsersController(UsersService usersService) : ControllerBase
     public async Task<IActionResult> GetUserSubscribers(
         [FromRoute] string username,
         [FromQuery(Name = "next_page_token")] string? nextPageToken,
-        [FromUserId] Guid? myUserId)
+        [FromUserId] Guid? myUserId,
+        CancellationToken cancellationToken)
     {
         GetUserSubscribersDto[] subscribers;
         if (nextPageToken != null)
@@ -267,11 +286,13 @@ public class UsersController(UsersService usersService) : ControllerBase
             if (decodeResult.lastCreatedAt == null || decodeResult.lastValue == null)
                 return BadRequest("Invalid next page token");
 
-            subscribers = await usersService.GetUserSubscribers(username, PageSize + 1, decodeResult.lastCreatedAt, decodeResult.lastValue, myUserId);
+            subscribers = await usersService.GetUserSubscribers(username, PageSize + 1, decodeResult.lastCreatedAt,
+                decodeResult.lastValue, myUserId, cancellationToken);
         }
         else
         {
-            subscribers = await usersService.GetUserSubscribers(username, PageSize + 1, null, null, myUserId);
+            subscribers = await usersService.GetUserSubscribers(username, PageSize + 1, null, null, myUserId,
+                cancellationToken);
         }
 
         var subscribersPage = subscribers.Take(PageSize).ToArray();

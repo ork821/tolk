@@ -7,7 +7,8 @@ namespace TolkApi.Comments;
 public class CommentsService(DatabaseContext databaseContext)
 {
 
-    public async Task<CommentEntity[]> GetCommentReplies(long commentId, int limit, DateTime? lastCreatedAt, long? lastId)
+    public async Task<CommentEntity[]> GetCommentReplies(long commentId, int limit, DateTime? lastCreatedAt,
+        long? lastId, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -18,9 +19,9 @@ public class CommentsService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@lastCreatedAt", lastCreatedAt == null ? DBNull.Value : lastCreatedAt);
         command.Parameters.AddWithValue("@lastId", lastId == null ? DBNull.Value : lastId);
         
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var comments = new List<CommentEntity>();
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             comments.Add(CommentEntity.FromReader(reader));
         }
@@ -28,7 +29,7 @@ public class CommentsService(DatabaseContext databaseContext)
     }
 
     public async Task<CreateUpdateCommentDto?> CreateComment(long postId, long commentId, Guid userId, 
-        int contentType, string content)
+        int contentType, string content, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -41,9 +42,9 @@ public class CommentsService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@content", content);
         
         
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync())
+        if (await reader.ReadAsync(cancellationToken))
         {
             return ReadCreateUpdateComment(reader);
         }
@@ -52,7 +53,7 @@ public class CommentsService(DatabaseContext databaseContext)
     }
     
     public async Task<CreateUpdateCommentDto?> CreateReplyComment(long commentId, long parentCommentId, Guid userId, 
-        int contentType, string content)
+        int contentType, string content, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -65,9 +66,9 @@ public class CommentsService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@parentCommentId", parentCommentId);
         
         
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync())
+        if (await reader.ReadAsync(cancellationToken))
         {
             return ReadCreateUpdateComment(reader);
         }
@@ -75,7 +76,8 @@ public class CommentsService(DatabaseContext databaseContext)
         return null;
     }
     
-    public async Task<CreateUpdateCommentDto?> UpdateComment(long commentId, Guid userId, int contentType, string content)
+    public async Task<CreateUpdateCommentDto?> UpdateComment(long commentId, Guid userId, int contentType,
+        string content, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -87,9 +89,9 @@ public class CommentsService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@content", content);
         
         
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        if (await reader.ReadAsync())
+        if (await reader.ReadAsync(cancellationToken))
         {
             return ReadCreateUpdateComment(reader);
         }
@@ -97,7 +99,7 @@ public class CommentsService(DatabaseContext databaseContext)
         return null;
     }
 
-    public async Task<bool> DeleteComment(long commentId, Guid userId)
+    public async Task<bool> DeleteComment(long commentId, Guid userId, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(
@@ -106,7 +108,7 @@ public class CommentsService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@commentId", commentId);
         command.Parameters.AddWithValue("@userId", userId);
 
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result == null)
         {
             return false;

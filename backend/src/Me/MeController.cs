@@ -15,9 +15,9 @@ public class MeController(UsersService usersService) : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(GetUserByUsernameDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetMe([FromUserId] Guid userId)
+    public async Task<IActionResult> GetMe([FromUserId] Guid userId, CancellationToken cancellationToken)
     {
-        var user = await usersService.GetUserById(userId);
+        var user = await usersService.GetUserById(userId, cancellationToken);
         if (user == null) return Unauthorized();
 
         return Ok(user);

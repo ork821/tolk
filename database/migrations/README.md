@@ -26,6 +26,10 @@ Rules:
   `SET search_path = pg_catalog, main, users, groups, public`. The `public`
   schema is safe here because `database/init.sh` revokes `CREATE` on it from
   `PUBLIC`. Never rely on an event trigger to add these properties later.
+- The application role must remain function-only after every migration. Never
+  grant it table or sequence privileges, schema `CREATE`, role membership, or
+  ownership of objects in `main`, `users`, or `groups`. The database test suite
+  checks this invariant after applying the complete migration set.
 
 The existing schema created by `database/tables.sql`, `database/functions.sql`,
 and `database/init.sh` is recorded as Flyway baseline

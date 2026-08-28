@@ -19,9 +19,9 @@ public class ProfileController(
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> DeleteProfile([FromUserId] Guid userId)
+    public async Task<IActionResult> DeleteProfile([FromUserId] Guid userId, CancellationToken cancellationToken)
     {
-        var deletedAt = await usersService.DeleteUser(userId);
+        var deletedAt = await usersService.DeleteUser(userId, cancellationToken);
         if (deletedAt == null) return Unauthorized();
 
         HttpContext.Response.Cookies.Delete(RefreshTokenCookieName);
@@ -36,16 +36,18 @@ public class ProfileController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> UpdateProfile(
         [FromBody] UpdateProfileInfoBodyDto body,
-        [FromUserId] Guid userId)
+        [FromUserId] Guid userId,
+        CancellationToken cancellationToken)
     {
-        var validationResult = await new UpdateProfileInfoBodyDtoValidator().ValidateAsync(body);
+        var validationResult = await new UpdateProfileInfoBodyDtoValidator().ValidateAsync(body, cancellationToken);
         if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         var result = await usersService.UpdateProfileInfo(
             userId,
             body.DisplayName?.Trim(),
             body.Description?.Trim(),
-            body.AvatarUrl?.Trim());
+            body.AvatarUrl?.Trim(),
+            cancellationToken);
 
         if (result == null) return Unauthorized();
 

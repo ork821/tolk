@@ -8,15 +8,15 @@ namespace TolkApi.Reactions;
 
 public class ReactionService(DatabaseContext databaseContext)
 {
-    public async Task<ReactionTypeDto[]> GetReactionTypes()
+    public async Task<ReactionTypeDto[]> GetReactionTypes(CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand("SELECT * FROM main.get_active_reactions()");
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var reactionTypes = new List<ReactionTypeDto>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             reactionTypes.Add(new ReactionTypeDto(
                 reader.GetString(0),
@@ -28,7 +28,8 @@ public class ReactionService(DatabaseContext databaseContext)
     }
 
 
-    public async Task<bool> AddPostReaction(long postId, Guid userId, string reaction)
+    public async Task<bool> AddPostReaction(long postId, Guid userId, string reaction,
+        CancellationToken cancellationToken)
     {
         
         await using var command = databaseContext.GetCon()
@@ -38,7 +39,7 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@reaction", reaction);
 
         
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result == null)
         {
             return false;
@@ -47,7 +48,8 @@ public class ReactionService(DatabaseContext databaseContext)
     
     }
     
-    public async Task<bool> DeletePostReaction(long postId, Guid userId, string reaction)
+    public async Task<bool> DeletePostReaction(long postId, Guid userId, string reaction,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.delete_post_reactions(@postId, @userId, @reaction)");
@@ -56,7 +58,7 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@reaction", reaction);
 
         
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result == null)
         {
             return false;
@@ -64,7 +66,8 @@ public class ReactionService(DatabaseContext databaseContext)
         return (bool)result;
     }
     
-    public async Task<bool> AddCommentReaction(long commentId, Guid userId, string reaction)
+    public async Task<bool> AddCommentReaction(long commentId, Guid userId, string reaction,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.add_comment_reactions(@commentId, @userId, @reaction)");
@@ -73,7 +76,7 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@reaction", reaction);
 
         
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result == null)
         {
             return false;
@@ -81,7 +84,8 @@ public class ReactionService(DatabaseContext databaseContext)
         return (bool)result;
     }
     
-    public async Task<bool> DeleteCommentReaction(long commentId, Guid userId, string reaction)
+    public async Task<bool> DeleteCommentReaction(long commentId, Guid userId, string reaction,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.delete_comment_reactions(@commentId, @userId, @reaction)");
@@ -90,7 +94,7 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.AddWithValue("@reaction", reaction);
 
         
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         if (result == null)
         {
             return false;
@@ -98,23 +102,24 @@ public class ReactionService(DatabaseContext databaseContext)
         return (bool)result;
     }
 
-    public async Task<GetReactionsDto[]> GetCommentReactions(long commentId)
+    public async Task<GetReactionsDto[]> GetCommentReactions(long commentId, CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.get_comment_reactions(@commentId)");
         command.Parameters.AddWithValue("@commentId", commentId);
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var reactions = new List<GetReactionsDto>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             reactions.Add(new GetReactionsDto(reader.GetString(0), reader.GetInt64(1), false));
         }
         return reactions.ToArray();
     }
 
-    public async Task<GetCommentReactionsBatchDto[]> GetCommentReactions(long[] commentIds, Guid? userId = null)
+    public async Task<GetCommentReactionsBatchDto[]> GetCommentReactions(long[] commentIds, Guid? userId,
+        CancellationToken cancellationToken)
     {
         if (commentIds.Length == 0)
         {
@@ -126,7 +131,7 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.Add("commentIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = commentIds;
         command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId.HasValue ? userId.Value : DBNull.Value;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var reactionsByCommentId = new Dictionary<long, List<GetReactionsDto>>();
 
         foreach (var commentId in commentIds)
@@ -134,7 +139,7 @@ public class ReactionService(DatabaseContext databaseContext)
             reactionsByCommentId.TryAdd(commentId, []);
         }
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             var commentId = reader.GetInt64(0);
             if (!reactionsByCommentId.TryGetValue(commentId, out var reactions))
@@ -154,24 +159,26 @@ public class ReactionService(DatabaseContext databaseContext)
             .ToArray();
     }
     
-    public async Task<GetReactionsDto[]> GetPostReactions(long postId, Guid? userId = null)
+    public async Task<GetReactionsDto[]> GetPostReactions(long postId, Guid? userId,
+        CancellationToken cancellationToken)
     {
         await using var command = databaseContext.GetCon()
             .CreateCommand(@"SELECT * FROM main.get_post_reactions(@postId, @userId)");
         command.Parameters.AddWithValue("@postId", postId);
         command.Parameters.Add("@userId", NpgsqlDbType.Uuid).Value = userId.HasValue ? userId.Value : DBNull.Value;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var reactions = new List<GetReactionsDto>();
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             reactions.Add(new GetReactionsDto(reader.GetString(0), reader.GetInt64(1), reader.GetBoolean(2)));
         }
         return reactions.ToArray();
     }
 
-    public async Task<GetPostReactionsBatchDto[]> GetPostReactions(long[] postIds, Guid? userId = null)
+    public async Task<GetPostReactionsBatchDto[]> GetPostReactions(long[] postIds, Guid? userId,
+        CancellationToken cancellationToken)
     {
         if (postIds.Length == 0)
         {
@@ -183,7 +190,7 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.Add("postIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = postIds;
         command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId.HasValue ? userId.Value : DBNull.Value;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var reactionsByPostId = new Dictionary<long, List<GetReactionsDto>>();
 
         foreach (var postId in postIds)
@@ -191,7 +198,7 @@ public class ReactionService(DatabaseContext databaseContext)
             reactionsByPostId.TryAdd(postId, []);
         }
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             var postId = reader.GetInt64(0);
             if (!reactionsByPostId.TryGetValue(postId, out var reactions))
@@ -211,7 +218,8 @@ public class ReactionService(DatabaseContext databaseContext)
             .ToArray();
     }
 
-    public async Task<Dictionary<long, TolkApi.Posts.DTO.PostPermissionsDto>> GetPostPermissions(long[] postIds, Guid userId)
+    public async Task<Dictionary<long, TolkApi.Posts.DTO.PostPermissionsDto>> GetPostPermissions(long[] postIds,
+        Guid userId, CancellationToken cancellationToken)
     {
         var permissionsByPostId = new Dictionary<long, TolkApi.Posts.DTO.PostPermissionsDto>();
         foreach (var postId in postIds)
@@ -229,9 +237,9 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.Add("postIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = postIds;
         command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             permissionsByPostId[reader.GetInt64(0)] = new TolkApi.Posts.DTO.PostPermissionsDto(
                 reader.GetBoolean(1),
@@ -242,7 +250,8 @@ public class ReactionService(DatabaseContext databaseContext)
         return permissionsByPostId;
     }
 
-    public async Task<Dictionary<long, CommentPermissionsDto>> GetCommentPermissions(long[] commentIds, Guid userId)
+    public async Task<Dictionary<long, CommentPermissionsDto>> GetCommentPermissions(long[] commentIds, Guid userId,
+        CancellationToken cancellationToken)
     {
         var permissionsByCommentId = new Dictionary<long, CommentPermissionsDto>();
         foreach (var commentId in commentIds)
@@ -260,9 +269,9 @@ public class ReactionService(DatabaseContext databaseContext)
         command.Parameters.Add("commentIds", NpgsqlDbType.Array | NpgsqlDbType.Bigint).Value = commentIds;
         command.Parameters.Add("userId", NpgsqlDbType.Uuid).Value = userId;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             permissionsByCommentId[reader.GetInt64(0)] = new CommentPermissionsDto(
                 reader.GetBoolean(1),

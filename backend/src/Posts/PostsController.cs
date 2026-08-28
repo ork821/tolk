@@ -26,11 +26,12 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     [HttpPost]
     [ProducesResponseType(typeof(CreateUpdatePostDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreatePost([FromBody] CreatePostBodyDto createDto, [FromUserId] Guid userId)
+    public async Task<IActionResult> CreatePost([FromBody] CreatePostBodyDto createDto, [FromUserId] Guid userId,
+        CancellationToken cancellationToken)
     {
         // Логика создания поста (в группе или на личной стене)
         
-        var validationResult = await new CreatePostDtoValidator().ValidateAsync(createDto);
+        var validationResult = await new CreatePostDtoValidator().ValidateAsync(createDto, cancellationToken);
         if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         var newPostId = idGenerator.CreateId();
@@ -38,7 +39,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
             userId, 
             null, 
             (int)createDto.Type, 
-            createDto.Content);
+            createDto.Content,
+            cancellationToken);
         
         if (createPostResult == null) return BadRequest("Failed to create post");
         return Created($"/api/v1/posts/{newPostId}", createPostResult);
@@ -47,11 +49,11 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     [HttpGet("{post}")]
     [ProducesResponseType(typeof(PostDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPost([FromRoute] string post)
+    public async Task<IActionResult> GetPost([FromRoute] string post, CancellationToken cancellationToken)
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
-        var postEntity = await service.GetPost(postId);
+        var postEntity = await service.GetPost(postId, cancellationToken);
         if (postEntity == null) return NotFound("Post not found");
 
         return Ok(postEntity);
@@ -64,11 +66,12 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     public async Task<IActionResult> CreatePostReply(
         [FromBody] CreatePostBodyDto createDto, 
         [FromUserId] Guid userId,
-        [FromRoute] string post
+        [FromRoute] string post,
+        CancellationToken cancellationToken
     )
     {
         // Логика создания поста (в группе или на личной стене)
-        var validationResult = await new CreatePostDtoValidator().ValidateAsync(createDto);
+        var validationResult = await new CreatePostDtoValidator().ValidateAsync(createDto, cancellationToken);
         if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         if (!SnowflakeIdParser.TryParse(post, out var parentPostId)) return BadRequest("Invalid post id");
@@ -81,7 +84,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
                 userId, 
                 parentPostId, 
                 (int)createDto.Type, 
-                createDto.Content);
+                createDto.Content,
+                cancellationToken);
         }
         catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.InvalidParameterValue)
         {
@@ -95,11 +99,11 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     [HttpGet("{post}/thread")]
     [ProducesResponseType(typeof(PostDto[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPostThread([FromRoute] string post)
+    public async Task<IActionResult> GetPostThread([FromRoute] string post, CancellationToken cancellationToken)
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
-        var thread = await service.GetPostThread(postId);
+        var thread = await service.GetPostThread(postId, cancellationToken);
         if (thread.Length == 0) return NotFound("Post thread not found");
 
         return Ok(thread);
@@ -112,15 +116,16 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     public async Task<IActionResult> UpdatePost(
         [FromRoute] string post,
         [FromBody] UpdatePostBodyDto updateDto,
-        [FromUserId] Guid userId)
+        [FromUserId] Guid userId,
+        CancellationToken cancellationToken)
     {
-        var validationResult = await new UpdatePostDtoValidator().ValidateAsync(updateDto);
+        var validationResult = await new UpdatePostDtoValidator().ValidateAsync(updateDto, cancellationToken);
         if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
         var updatePostResult =
-            await service.UpdatePost(postId, userId, (int)updateDto.Type, updateDto.Content);
+            await service.UpdatePost(postId, userId, (int)updateDto.Type, updateDto.Content, cancellationToken);
         if (updatePostResult == null) return BadRequest("Failed to update post");
         return Ok(updatePostResult);
     }
@@ -129,11 +134,12 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     [HttpDelete("{post}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> DeletePost([FromRoute] string post, [FromUserId] Guid userId)
+    public async Task<IActionResult> DeletePost([FromRoute] string post, [FromUserId] Guid userId,
+        CancellationToken cancellationToken)
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
-        var deletePostResult = await service.DeletePost(postId, userId);
+        var deletePostResult = await service.DeletePost(postId, userId, cancellationToken);
         if (deletePostResult == false) return BadRequest("Failed to delete post");
 
         return NoContent();
@@ -147,14 +153,15 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     [ProducesResponseType(typeof(PagedCommentsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetPostComments([FromRoute] string post, 
-        [FromQuery(Name = "next_page_token")] string? nextPageToken)
+        [FromQuery(Name = "next_page_token")] string? nextPageToken,
+        CancellationToken cancellationToken)
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
         CommentEntity[] comments;
         if (nextPageToken == null)
         {
-            comments = await service.GetPostComments(postId, PageSize + 1, null, null);
+            comments = await service.GetPostComments(postId, PageSize + 1, null, null, cancellationToken);
         }
         else
         {
@@ -164,7 +171,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
                 return BadRequest("Invalid next page token");
             }
 
-            comments = await service.GetPostComments(postId, PageSize + 1, parseResult.lastCreatedAt, parseResult.lastId);
+            comments = await service.GetPostComments(postId, PageSize + 1, parseResult.lastCreatedAt,
+                parseResult.lastId, cancellationToken);
         }
 
         var page = comments.Take(PageSize).ToArray();
@@ -183,13 +191,14 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     public async Task<IActionResult> CreateComment(
         [FromRoute] string post,
         [FromBody] CreateCommentBodyDto body,
-        [FromUserId] Guid userId
+        [FromUserId] Guid userId,
+        CancellationToken cancellationToken
     )
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
         var validator = new CreateCommentDtoValidator();
-        var validationResult = await validator.ValidateAsync(body);
+        var validationResult = await validator.ValidateAsync(body, cancellationToken);
         if (!validationResult.IsValid)
         {
             return BadRequest(validationResult.ToString());
@@ -200,7 +209,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
             id,
             userId,
             (int)body.Type,
-            body.Content);
+            body.Content,
+            cancellationToken);
         if (createResult == null)
         {
             return BadRequest();
@@ -215,11 +225,12 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetMetadata(
         [FromBody] MetadataRequestDto body,
-        [FromUserId] Guid? userId
+        [FromUserId] Guid? userId,
+        CancellationToken cancellationToken
     )
     {
         var validator = new MetadataRequestDtoValidator();
-        var validationResult = await validator.ValidateAsync(body);
+        var validationResult = await validator.ValidateAsync(body, cancellationToken);
         if (!validationResult.IsValid) return BadRequest(validationResult.ToString());
 
         if (body.Ids.Length == 0) return Ok(new Dictionary<string, PostMetadataDto>());
@@ -232,13 +243,13 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         }
 
         var uniquePostIds = postIds.ToArray();
-        var reactions = await reactionService.GetPostReactions(postIds.ToArray(), userId);
+        var reactions = await reactionService.GetPostReactions(postIds.ToArray(), userId, cancellationToken);
         var reactionsByPostId = reactions.ToDictionary(x => x.PostId);
 
         var emptyPermissions = new PostPermissionsDto(false, false, false);
         var permissionsByPostId = userId == null
             ? new Dictionary<long, PostPermissionsDto>()
-            : await reactionService.GetPostPermissions(uniquePostIds, userId.Value);
+            : await reactionService.GetPostPermissions(uniquePostIds, userId.Value, cancellationToken);
 
         var metadata = uniquePostIds
             .ToDictionary(
@@ -256,11 +267,12 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     
     [HttpGet("{post}/reactions")]
     [ProducesResponseType(typeof(GetReactionsDto[]), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetReactions([FromRoute] string post, [FromUserId] Guid? userId)
+    public async Task<IActionResult> GetReactions([FromRoute] string post, [FromUserId] Guid? userId,
+        CancellationToken cancellationToken)
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
 
-        var reactions = await reactionService.GetPostReactions(postId, userId);
+        var reactions = await reactionService.GetPostReactions(postId, userId, cancellationToken);
         
         return Ok(reactions);
     }
@@ -272,7 +284,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     public async Task<IActionResult> AddPostReaction(
         [FromRoute] string post,
         [FromRoute] string reaction,
-        [FromUserId] Guid userId
+        [FromUserId] Guid userId,
+        CancellationToken cancellationToken
     )
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
@@ -280,7 +293,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         var result = await reactionService.AddPostReaction(
             postId,
             userId,
-            reaction
+            reaction,
+            cancellationToken
         );
         
         if (result == false)
@@ -298,7 +312,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
     public async Task<IActionResult> DeletePostReaction(
         [FromRoute] string post,
         [FromRoute] string reaction,
-        [FromUserId] Guid userId
+        [FromUserId] Guid userId,
+        CancellationToken cancellationToken
     )
     {
         if (!SnowflakeIdParser.TryParse(post, out var postId)) return BadRequest("Invalid post id");
@@ -306,7 +321,8 @@ public class PostsController(SnowflakeIdGenerator idGenerator, PostsService serv
         var result = await reactionService.DeletePostReaction(
             postId,
             userId,
-            reaction
+            reaction,
+            cancellationToken
         );
         
         if (result == false)

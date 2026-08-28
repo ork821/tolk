@@ -16,7 +16,8 @@ public class FeedController(PostsService postsService) : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(PagedPostsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetFeed([FromQuery(Name = "next_page_token")] string? nextPageToken)
+    public async Task<IActionResult> GetFeed([FromQuery(Name = "next_page_token")] string? nextPageToken,
+        CancellationToken cancellationToken)
     {
         var lastCreatedAt = (DateTime?)null;
         var lastId = (long?)null;
@@ -33,7 +34,7 @@ public class FeedController(PostsService postsService) : ControllerBase
             lastId = decodeResult.lastId;
         }
 
-        var posts = await postsService.GetFeed(PageSize + 1, lastCreatedAt, lastId);
+        var posts = await postsService.GetFeed(PageSize + 1, lastCreatedAt, lastId, cancellationToken);
         var page = posts.Take(PageSize).ToArray();
         var nextToken = posts.Length <= PageSize
             ? null
