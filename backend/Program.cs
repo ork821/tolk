@@ -93,7 +93,12 @@ builder.Services.AddSingleton<DatabaseContext>(_ =>
 
     return new DatabaseContext(connStr);
 });
-builder.Services.AddSingleton<SnowflakeIdGenerator>(_ => new SnowflakeIdGenerator(7, 7));
+var snowflakeSection = builder.Configuration.GetRequiredSection("Snowflake");
+var snowflakeWorkerId = snowflakeSection.GetValue<long?>("WorkerId")
+                   ?? throw new InvalidOperationException("Snowflake worker ID is missing");
+var snowflakeDatacenterId = snowflakeSection.GetValue<long?>("DatacenterId")
+                       ?? throw new InvalidOperationException("Snowflake datacenter ID is missing");
+builder.Services.AddSingleton(new SnowflakeIdGenerator(snowflakeWorkerId, snowflakeDatacenterId));
 builder.Services.AddSingleton<PostsService>();
 // builder.Services.AddSingleton<LinkPreviewService>();
 builder.Services.AddSingleton<UsersService>();

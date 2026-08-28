@@ -8,6 +8,8 @@ services:
       JwtSettings__AccessSecret: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
       JwtSettings__RefreshTokenHashSecret: ${JWT_REFRESH_TOKEN_HASH_SECRET:?JWT_REFRESH_TOKEN_HASH_SECRET is required}
       YooMoney__NotificationSecret: ${YOOMONEY_NOTIFICATION_SECRET:?YOOMONEY_NOTIFICATION_SECRET is required}
+      TOLK_Snowflake__WorkerId: ${SNOWFLAKE_WORKER_ID:?SNOWFLAKE_WORKER_ID is required}
+      TOLK_Snowflake__DatacenterId: ${SNOWFLAKE_DATACENTER_ID:?SNOWFLAKE_DATACENTER_ID is required}
       TOLK_Host: https://${DOMAIN}
       TOLK_AllowedOrigins__0: https://${DOMAIN}
     read_only: true
